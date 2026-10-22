@@ -72,14 +72,11 @@ function Gate() {
   }
 
   if (profile.status !== 'approved') {
-    const rejected = profile.status === 'rejected'
+    // Odrzuconym pokazujemy ten sam komunikat co oczekującym.
     return (
       <Centered>
         <p className="mt-4">
-          {error ??
-            (rejected
-              ? 'Twój wniosek o dostęp został odrzucony. Skontaktuj się z administratorem.'
-              : 'Konto czeka na zatwierdzenie przez administratora.')}
+          {error ?? 'Twoje konto oczekuje na zatwierdzenie przez administratora.'}
         </p>
         <p className="text-muted mt-1 text-sm">{shownName(profile)}</p>
         <button className="btn-secondary mt-6 w-full" onClick={logout}>
