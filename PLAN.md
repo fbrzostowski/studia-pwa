@@ -37,15 +37,18 @@ GitHub Pages serwuje statyczne pliki — nie ma tam kodu serwerowego, bazy danyc
 Firestore to baza dokumentowa (NoSQL) — inaczej niż relacyjne ERD z Twojego kursu: bez JOIN-ów, dane bywa sensowniej duplikować niż łączyć kluczami.
 
 **users** (dokument per użytkownik, id = UID z Firebase Auth)
-- `displayName`, `email`, `photoURL`, `createdAt`,
+- `username` (wybierany przy pierwszym logowaniu, 3–20 znaków, unikalny bez względu na wielkość liter; pokazywany innym zamiast e-maila), `displayName`, `email`, `photoURL`, `createdAt`,
 - `role`: `"user"` | `"admin"`,
 - `status`: `"pending"` | `"approved"` | `"rejected"`,
 - `reviewedBy`, `reviewedAt` (kto i kiedy zatwierdził/odrzucił).
 
 Przy pierwszym logowaniu klient tworzy własny dokument z `role: "user"`, `status: "pending"` (reguły wymuszają dokładnie te wartości). Zmieniać `role` i `status` może tylko admin.
 
+**usernames** (rezerwacje nazw — id dokumentu = nazwa małymi literami)
+- `uid`, `createdAt`. Zapis atomowy razem z `users/{uid}`; zapewnia unikalność nazw.
+
 **subjects** (przedmioty — wspólna lista)
-- `name`, `createdBy`, `createdAt`.
+- `name`, `kind` (`WYK` | `LAB` | `KON` | `CW` | `WYK+CW` | `KON+CW`), `createdBy`, `createdAt`.
 
 **materials** (wspólne materiały z zajęć — notatki/slajdy/linki dodawane ręcznie przez użytkowników appki)
 - `subjectId`, `title`, `type` (notatka / slajd / link),

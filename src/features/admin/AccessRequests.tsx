@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
-import { useAuth, type Role, type Status, type UserProfile } from '../../firebase/AuthContext'
+import { shownName, useAuth, type Role, type Status, type UserProfile } from '../../firebase/AuthContext'
 
 type Row = UserProfile & { uid: string }
 
@@ -20,8 +20,8 @@ const STATUS_STYLE: Record<Status, string> = {
 function Person({ r }: { r: Row }) {
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium">{r.displayName || r.email}</p>
-      <p className="text-muted truncate text-sm">{r.email}</p>
+      <p className="truncate font-medium">{shownName(r)}</p>
+      {r.username && r.displayName && <p className="text-muted truncate text-sm">{r.displayName}</p>}
     </div>
   )
 }

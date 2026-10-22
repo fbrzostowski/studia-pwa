@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { AuthProvider, useAuth } from './firebase/AuthContext'
+import { AuthProvider, shownName, useAuth } from './firebase/AuthContext'
+import UsernameForm from './features/profile/UsernameForm'
 import MaterialsPage from './features/materials/MaterialsPage'
 import AccessRequests from './features/admin/AccessRequests'
 import InstallHint from './components/InstallHint'
@@ -50,8 +51,26 @@ function Gate() {
     )
   }
 
-  if (!profile || profile.status !== 'approved') {
-    const rejected = profile?.status === 'rejected'
+  if (!profile) {
+    if (error) {
+      return (
+        <Centered>
+          <p className="text-danger mt-4 text-sm">{error}</p>
+          <button className="btn-secondary mt-6 w-full" onClick={logout}>
+            Wyloguj
+          </button>
+        </Centered>
+      )
+    }
+    return (
+      <Centered>
+        <UsernameForm />
+      </Centered>
+    )
+  }
+
+  if (profile.status !== 'approved') {
+    const rejected = profile.status === 'rejected'
     return (
       <Centered>
         <p className="mt-4">
@@ -60,7 +79,7 @@ function Gate() {
               ? 'Twój wniosek o dostęp został odrzucony. Skontaktuj się z administratorem.'
               : 'Konto czeka na zatwierdzenie przez administratora.')}
         </p>
-        <p className="text-muted mt-1 text-sm">{user.email}</p>
+        <p className="text-muted mt-1 text-sm">{shownName(profile)}</p>
         <button className="btn-secondary mt-6 w-full" onClick={logout}>
           Wyloguj
         </button>
@@ -69,7 +88,7 @@ function Gate() {
   }
 
   const isAdmin = profile.role === 'admin'
-  const initial = (profile.displayName || profile.email || '?').trim().charAt(0).toUpperCase()
+  const initial = shownName(profile).charAt(0).toUpperCase()
 
   return (
     <>

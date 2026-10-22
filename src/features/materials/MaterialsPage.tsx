@@ -4,7 +4,7 @@ import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
-import { TYPE_LABEL, TYPE_STYLE, type Material, type Subject } from './types'
+import { KIND_LABEL, SUBJECT_KINDS, TYPE_LABEL, TYPE_STYLE, type Material, type Subject, type SubjectKind } from './types'
 
 export default function MaterialsPage() {
   const { user, profile } = useAuth()
@@ -13,6 +13,7 @@ export default function MaterialsPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [materials, setMaterials] = useState<Material[]>([])
   const [newSubject, setNewSubject] = useState('')
+  const [newKind, setNewKind] = useState<SubjectKind>('WYK')
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +26,11 @@ export default function MaterialsPage() {
           setSubjects(
             snap.docs
               .map((d) => ({ id: d.id, ...(d.data() as Omit<Subject, 'id'>) }))
-              .sort((a, b) => a.name.localeCompare(b.name, 'pl')),
+              .sort(
+                (a, b) =>
+                  a.name.localeCompare(b.name, 'pl') ||
+                  SUBJECT_KINDS.indexOf(a.kind) - SUBJECT_KINDS.indexOf(b.kind),
+              ),
           ),
         (e) => setError(e.message),
       ),
@@ -51,7 +56,12 @@ export default function MaterialsPage() {
     const name = newSubject.trim()
     if (!name) return
     try {
-      await addDoc(collection(db, 'subjects'), { name, createdBy: user!.uid, createdAt: serverTimestamp() })
+      await addDoc(collection(db, 'subjects'), {
+        name,
+        kind: newKind,
+        createdBy: user!.uid,
+        createdAt: serverTimestamp(),
+      })
       setNewSubject('')
       setAddingSubject(false)
     } catch (err) {
@@ -62,7 +72,7 @@ export default function MaterialsPage() {
   const canEdit = (ownerId: string) => isAdmin || ownerId === user!.uid
 
   const removeSubject = async (s: Subject) => {
-    if (!confirm(`Usunąć przedmiot „${s.name}”? Materiały z tego przedmiotu zostaną w bazie.`)) return
+    if (!confirm(`Usunąć przedmiot „${s.name} (${s.kind})”? Materiały z tego przedmiotu zostaną w bazie.`)) return
     await deleteDoc(doc(db, 'subjects', s.id)).catch((e) => setError(e.message))
     if (selected === s.id) setSelected(null)
   }
@@ -104,6 +114,7 @@ export default function MaterialsPage() {
               }}
             >
               {s.name}
+              {s.kind && <span className="ml-1.5 text-xs font-semibold opacity-70">{s.kind}</span>}
             </button>
           </li>
         ))}
@@ -119,15 +130,39 @@ export default function MaterialsPage() {
       </ul>
 
       {addingSubject && (
-        <form onSubmit={addSubject} className="mt-2 flex gap-2">
+        <form onSubmit={addSubject} className="card mt-2 space-y-3 p-3">
           <input
             autoFocus
-            className="input min-w-0 flex-1"
+            required
+            className="input"
             placeholder="Nazwa przedmiotu"
             value={newSubject}
             onChange={(e) => setNewSubject(e.target.value)}
           />
-          <button className="btn-primary">Dodaj</button>
+          <div>
+            <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">Rodzaj zajęć</p>
+            <div className="flex flex-wrap gap-2">
+              {SUBJECT_KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className="chip"
+                  aria-pressed={newKind === k}
+                  title={KIND_LABEL[k]}
+                  onClick={() => setNewKind(k)}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            <p className="text-muted mt-1.5 text-xs">{KIND_LABEL[newKind]}</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-primary">Dodaj przedmiot</button>
+            <button type="button" className="btn-ghost" onClick={() => setAddingSubject(false)}>
+              Anuluj
+            </button>
+          </div>
         </form>
       )}
 
@@ -140,7 +175,14 @@ export default function MaterialsPage() {
       {current && (
         <section className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">{current.name}</h2>
+            <h2 className="text-xl font-semibold tracking-tight">
+              {current.name}
+              {current.kind && (
+                <span className="badge bg-accent-soft text-accent ml-2 align-middle" title={KIND_LABEL[current.kind]}>
+                  {current.kind}
+                </span>
+              )}
+            </h2>
             <div className="flex gap-1">
               {canEdit(current.createdBy) && (
                 <button className="btn-danger" onClick={() => removeSubject(current)}>

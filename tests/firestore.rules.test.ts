@@ -6,11 +6,12 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
 
 let env: RulesTestEnvironment
 
-const profile = (role: string, status: string) => ({
+const profile = (role: string, status: string, username?: string) => ({
+  ...(username ? { username } : {}),
   displayName: 'X',
   email: 'x@example.com',
   photoURL: '',
@@ -35,7 +36,8 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users/bob'), profile('user', 'approved'))
     await setDoc(doc(db, 'users/pending'), profile('user', 'pending'))
     await setDoc(doc(db, 'users/rejected'), profile('user', 'rejected'))
-    await setDoc(doc(db, 'subjects/s1'), { name: 'Analiza', createdBy: 'alice' })
+    await setDoc(doc(db, 'subjects/s1'), { name: 'Analiza', kind: 'WYK', createdBy: 'alice' })
+    await setDoc(doc(db, 'usernames/alice'), { uid: 'alice' })
     await setDoc(doc(db, 'materials/m1'), { title: 'Notatki', ownerId: 'alice' })
     await setDoc(doc(db, 'exams/e1'), { title: 'Kolos', createdBy: 'alice' })
     await setDoc(doc(db, 'textbooks/t1'), { title: 'Podręcznik' })
@@ -45,23 +47,64 @@ beforeEach(async () => {
 const as = (uid: string) => env.authenticatedContext(uid).firestore()
 const anon = () => env.unauthenticatedContext().firestore()
 
+// zakłada konto jak aplikacja: rezerwacja nazwy + dokument users w jednej paczce
+const signUp = (
+  uid: string,
+  data: Record<string, unknown>,
+  reserve: { name: string; uid: string } | null = { name: String(data.username ?? '').toLowerCase(), uid },
+) => {
+  const db = as(uid)
+  const batch = writeBatch(db)
+  if (reserve) batch.set(doc(db, 'usernames', reserve.name), { uid: reserve.uid, createdAt: serverTimestamp() })
+  batch.set(doc(db, 'users', uid), { ...data, createdAt: serverTimestamp() })
+  return batch.commit()
+}
+
 describe('users: tworzenie konta', () => {
-  it('nowy użytkownik może utworzyć własny dokument jako user/pending', async () => {
-    await assertSucceeds(
-      setDoc(doc(as('new'), 'users/new'), { ...profile('user', 'pending'), createdAt: serverTimestamp() }),
-    )
+  it('nowy użytkownik zakłada konto jako user/pending z nazwą użytkownika', async () => {
+    await assertSucceeds(signUp('new', profile('user', 'pending', 'Nowy_01')))
   })
-  it('nie może utworzyć się jako approved', async () => {
-    await assertFails(setDoc(doc(as('new'), 'users/new'), profile('user', 'approved')))
-  })
-  it('nie może utworzyć się jako admin', async () => {
-    await assertFails(setDoc(doc(as('new'), 'users/new'), profile('admin', 'pending')))
+  it('nie może utworzyć się jako approved ani admin', async () => {
+    await assertFails(signUp('new', profile('user', 'approved', 'nowy')))
+    await assertFails(signUp('new', profile('admin', 'pending', 'nowy')))
   })
   it('nie może utworzyć dokumentu innej osoby', async () => {
-    await assertFails(setDoc(doc(as('new'), 'users/other'), profile('user', 'pending')))
+    await assertFails(
+      setDoc(doc(as('new'), 'users/other'), profile('user', 'pending', 'inny')),
+    )
+  })
+  it('bez nazwy użytkownika konto nie powstaje', async () => {
+    await assertFails(signUp('new', profile('user', 'pending'), null))
+    await assertFails(setDoc(doc(as('new'), 'users/new'), profile('user', 'pending')))
+  })
+  it('nazwa niedozwolona (za krótka, za długa, znaki specjalne) jest odrzucana', async () => {
+    for (const bad of ['ab', 'a'.repeat(21), 'z spacją', 'zły@znak', 'ęśą']) {
+      await assertFails(signUp('new', profile('user', 'pending', bad), { name: bad.toLowerCase(), uid: 'new' }))
+    }
+  })
+  it('zajęta nazwa jest odrzucana, także w innej wielkości liter', async () => {
+    await assertFails(signUp('new', profile('user', 'pending', 'alice')))
+    await assertFails(signUp('new', profile('user', 'pending', 'ALICE')))
+  })
+  it('nie zarezerwujesz nazwy na cudze uid ani nie podepniesz cudzej rezerwacji', async () => {
+    await assertFails(signUp('new', profile('user', 'pending', 'nowy'), { name: 'nowy', uid: 'ktos' }))
+    // rezerwacja nazwy A, a w profilu nazwa B
+    await assertFails(signUp('new', profile('user', 'pending', 'nowy'), { name: 'inna', uid: 'new' }))
+  })
+  it('sama rezerwacja bez profilu nie przechodzi', async () => {
+    await assertFails(setDoc(doc(as('new'), 'usernames/nowy'), { uid: 'new', createdAt: serverTimestamp() }))
+  })
+  it('rezerwacji nie da się nadpisać ani usunąć (poza adminem)', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'usernames/alice'), { uid: 'bob', createdAt: serverTimestamp() }))
+    await assertFails(deleteDoc(doc(as('alice'), 'usernames/alice')))
+    await assertSucceeds(deleteDoc(doc(as('admin'), 'usernames/alice')))
+  })
+  it('zalogowany może sprawdzić dostępność nazwy, anonim nie', async () => {
+    await assertSucceeds(getDoc(doc(as('new'), 'usernames/alice')))
+    await assertFails(getDoc(doc(anon(), 'usernames/alice')))
   })
   it('niezalogowany nie może nic utworzyć ani odczytać', async () => {
-    await assertFails(setDoc(doc(anon(), 'users/new'), profile('user', 'pending')))
+    await assertFails(setDoc(doc(anon(), 'users/new'), profile('user', 'pending', 'nowy')))
     await assertFails(getDoc(doc(anon(), 'users/alice')))
   })
 })
@@ -91,6 +134,9 @@ describe('users: eskalacja uprawnień', () => {
   })
   it('user nie może wpisać sobie reviewedBy', async () => {
     await assertFails(updateDoc(doc(as('pending'), 'users/pending'), { reviewedBy: 'admin' }))
+  })
+  it('user nie może zmienić sobie nazwy użytkownika', async () => {
+    await assertFails(updateDoc(doc(as('alice'), 'users/alice'), { username: 'cudza' }))
   })
   it('user może zmienić własne pola profilu', async () => {
     await assertSucceeds(updateDoc(doc(as('alice'), 'users/alice'), { displayName: 'Nowa' }))
@@ -152,8 +198,15 @@ describe('własność treści', () => {
     await assertSucceeds(setDoc(doc(as('bob'), 'exams/e2'), { title: 'K', createdBy: 'bob' }))
     await assertFails(setDoc(doc(as('bob'), 'exams/e3'), { title: 'K', createdBy: 'alice' }))
     await assertFails(deleteDoc(doc(as('bob'), 'exams/e1')))
-    await assertSucceeds(setDoc(doc(as('bob'), 'subjects/s2'), { name: 'N', createdBy: 'bob' }))
-    await assertFails(updateDoc(doc(as('bob'), 'subjects/s1'), { name: 'Hack' }))
+    await assertSucceeds(setDoc(doc(as('bob'), 'subjects/s2'), { name: 'N', kind: 'WYK+CW', createdBy: 'bob' }))
+    await assertFails(setDoc(doc(as('bob'), 'subjects/s4'), { name: 'N', createdBy: 'bob' }))
+    await assertFails(setDoc(doc(as('bob'), 'subjects/s5'), { name: 'N', kind: 'INNE', createdBy: 'bob' }))
+    for (const kind of ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']) {
+      await assertSucceeds(setDoc(doc(as('bob'), `subjects/k-${kind}`), { name: 'N', kind, createdBy: 'bob' }))
+    }
+    await assertFails(updateDoc(doc(as('alice'), 'subjects/s1'), { kind: 'XYZ' }))
+    await assertSucceeds(updateDoc(doc(as('alice'), 'subjects/s1'), { kind: 'CW' }))
+    await assertFails(updateDoc(doc(as('bob'), 'subjects/s1'), { name: 'Hack', kind: 'WYK' }))
   })
 })
 

@@ -1,8 +1,21 @@
 import type { Timestamp } from 'firebase/firestore'
 
+export const SUBJECT_KINDS = ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW'] as const
+export type SubjectKind = (typeof SUBJECT_KINDS)[number]
+
+export const KIND_LABEL: Record<SubjectKind, string> = {
+  WYK: 'Wykład',
+  LAB: 'Laboratorium',
+  KON: 'Konwersatorium',
+  CW: 'Ćwiczenia',
+  'WYK+CW': 'Wykład + ćwiczenia',
+  'KON+CW': 'Konwersatorium + ćwiczenia',
+}
+
 export interface Subject {
   id: string
   name: string
+  kind: SubjectKind
   createdBy: string
 }
 

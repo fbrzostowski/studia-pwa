@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
-import { useAuth } from '../../firebase/AuthContext'
+import { shownName, useAuth } from '../../firebase/AuthContext'
 import { MAX_FILE_BYTES, TYPE_LABEL, type MaterialType } from './types'
 
 export default function MaterialForm({ subjectId, onDone }: { subjectId: string; onDone: () => void }) {
@@ -32,7 +32,7 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
         title: title.trim(),
         type,
         ownerId: user!.uid,
-        ownerName: profile?.displayName ?? '',
+        ownerName: profile ? shownName(profile) : '',
         createdAt: serverTimestamp(),
       }
       if (type === 'note') data.content = content

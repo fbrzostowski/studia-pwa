@@ -12,13 +12,18 @@ service cloud.firestore {
         && me().status == 'approved';
     }
     function isAdmin() { return isApproved() && me().role == 'admin'; }
+    function validKind(k) { return k in ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']; }
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      // pierwsze logowanie: wyłącznie pending/user
+      // pierwsze logowanie: wyłącznie pending/user, z nazwą użytkownika zarezerwowaną
+      // na to samo uid w tej samej paczce zapisów (kolekcja usernames)
       allow create: if signedIn() && request.auth.uid == uid
                     && request.resource.data.status == 'pending'
-                    && request.resource.data.role == 'user';
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.username is string
+                    && request.resource.data.username.matches('^[a-zA-Z0-9_.-]{3,20}$')
+                    && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username.lower())).data.uid == uid;
       // user może zmienić tylko pola profilu, nie role/status/review*
       allow update: if signedIn() && request.auth.uid == uid
                     && request.resource.data.diff(resource.data).affectedKeys()
@@ -28,10 +33,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // rezerwacje nazw użytkowników: id dokumentu = nazwa małymi literami
+    match /usernames/{name} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+                    && name.matches('^[a-z0-9_.-]{3,20}$')
+                    && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+                    && request.resource.data.uid == request.auth.uid
+                    && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.username.lower() == name;
+      allow delete: if isAdmin();
+    }
+
     match /subjects/{docId} {
       allow read: if isApproved();
-      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAdmin()
+      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid
+                    && validKind(request.resource.data.kind);
+      allow update: if (isAdmin() || (isApproved() && resource.data.createdBy == request.auth.uid))
+                    && validKind(request.resource.data.kind);
+      allow delete: if isAdmin()
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
 
