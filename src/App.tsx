@@ -1,8 +1,18 @@
 import { AuthProvider, useAuth } from './firebase/AuthContext'
 import AccessRequests from './features/admin/AccessRequests'
+import InstallHint from './components/InstallHint'
+import OfflineBanner from './components/OfflineBanner'
 
 function Screen({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto max-w-2xl p-6">{children}</main>
+  return (
+    <>
+      <OfflineBanner />
+      <main className="mx-auto max-w-2xl p-6">
+        <InstallHint />
+        {children}
+      </main>
+    </>
+  )
 }
 
 function Gate() {

@@ -19,7 +19,9 @@ export default defineConfig({
         name: 'Studia',
         short_name: 'Studia',
         description: 'Organizacja zajęć na studiach',
+        id: base,
         lang: 'pl',
+        orientation: 'any',
         theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',
@@ -28,7 +30,7 @@ export default defineConfig({
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
