@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function isApproved() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && userDoc().status == 'approved';
+    }
+    function isAdmin() { return isApproved() && userDoc().role == 'admin'; }
+
+    // pliki dodawane przez użytkowników: materials/{uid}/...
+    match /materials/{ownerId}/{allPaths=**} {
+      allow read: if isApproved();
+      allow create: if resource == null && isApproved() && request.auth.uid == ownerId
+                    && request.resource.size < 25 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if isAdmin() || (isApproved() && request.auth.uid == ownerId);
+    }
+
+    // podręczniki z Drive: zapisuje tylko Cloud Function (Admin SDK)
+    match /textbooks/{allPaths=**} {
+      allow read: if isApproved();
+      allow write: if false;
+    }
+  }
+}

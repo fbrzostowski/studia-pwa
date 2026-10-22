@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { AuthProvider, useAuth } from './firebase/AuthContext'
+import MaterialsPage from './features/materials/MaterialsPage'
 import AccessRequests from './features/admin/AccessRequests'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
@@ -17,6 +19,7 @@ function Screen({ children }: { children: React.ReactNode }) {
 
 function Gate() {
   const { user, profile, loading, error, login, logout } = useAuth()
+  const [tab, setTab] = useState<'materials' | 'admin'>('materials')
 
   if (loading) return <Screen>Ładowanie…</Screen>
 
@@ -59,8 +62,17 @@ function Gate() {
           </button>
         </span>
       </header>
-      <p className="mt-4 text-gray-600">Panel — materiały, podręczniki i kolokwia pojawią się w kolejnych etapach.</p>
-      {profile.role === 'admin' && <AccessRequests />}
+      {profile.role === 'admin' && (
+        <nav className="mt-4 flex gap-2">
+          <button className={`rounded border px-3 py-1 ${tab === 'materials' ? 'bg-gray-900 text-white' : ''}`} onClick={() => setTab('materials')}>
+            Materiały
+          </button>
+          <button className={`rounded border px-3 py-1 ${tab === 'admin' ? 'bg-gray-900 text-white' : ''}`} onClick={() => setTab('admin')}>
+            Użytkownicy
+          </button>
+        </nav>
+      )}
+      {tab === 'admin' && profile.role === 'admin' ? <AccessRequests /> : <MaterialsPage />}
     </Screen>
   )
 }
