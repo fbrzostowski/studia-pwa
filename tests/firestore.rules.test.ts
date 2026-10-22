@@ -34,6 +34,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users/admin'), profile('admin', 'approved'))
     await setDoc(doc(db, 'users/alice'), profile('user', 'approved'))
     await setDoc(doc(db, 'users/bob'), profile('user', 'approved'))
+    await setDoc(doc(db, 'users/carol'), profile('user', 'approved', 'carol'))
     await setDoc(doc(db, 'users/pending'), profile('user', 'pending'))
     await setDoc(doc(db, 'users/rejected'), profile('user', 'rejected'))
     await setDoc(doc(db, 'subjects/s1'), { name: 'Analiza', kind: 'WYK', createdBy: 'alice' })
@@ -247,5 +248,106 @@ describe('plans: osobisty plan zajęć', () => {
     await assertFails(setDoc(doc(as('alice'), 'plans/alice'), { foo: 1 }))
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(1000)))
     await assertFails(setDoc(doc(as('alice'), 'plans/alice'), plan(1001)))
+  })
+})
+
+describe('memberships: kto należy do przedmiotu', () => {
+  const m = (uid: string, over: Record<string, unknown> = {}) => ({
+    uid,
+    subjectId: 's1',
+    username: 'X', // seedowi użytkownicy bez username mają displayName „X”
+    classes: [{ form: 'CW', group: '15', when: ['pt 11:40–13:15'], rooms: ['B-2'] }],
+    updatedAt: serverTimestamp(),
+    ...over,
+  })
+
+  it('approved dołącza do istniejącego przedmiotu, aktualizuje i opuszcza go', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob')))
+    await assertSucceeds(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { classes: [] })))
+    await assertSucceeds(deleteDoc(doc(as('bob'), 'memberships/s1_bob')))
+  })
+  it('twórca przedmiotu zapisuje przedmiot i członkostwo w jednej paczce (existsAfter)', async () => {
+    const db = as('bob')
+    const batch = writeBatch(db)
+    batch.set(doc(db, 'subjects/nowy'), { name: 'N', kind: 'WYK', createdBy: 'bob' })
+    batch.set(doc(db, 'memberships/nowy_bob'), m('bob', { subjectId: 'nowy' }))
+    await assertSucceeds(batch.commit())
+  })
+  it('nie da się dołączyć do nieistniejącego przedmiotu', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'memberships/brak_bob'), m('bob', { subjectId: 'brak' })))
+  })
+  it('nie podszyjesz się pod kogoś: cudze uid, zła nazwa, zły id dokumentu', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_alice'), m('alice')))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { username: 'alice' })))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_inny'), m('bob')))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('alice')))
+  })
+  it('nazwa w członkostwie musi być nazwą użytkownika z profilu', async () => {
+    await assertSucceeds(setDoc(doc(as('carol'), 'memberships/s1_carol'), m('carol', { username: 'carol' })))
+    await assertFails(setDoc(doc(as('carol'), 'memberships/s1_carol'), m('carol', { username: 'X' })))
+  })
+  it('niedozwolone pola i zły typ classes są odrzucane', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { role: 'admin' })))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { classes: 'x' })))
+  })
+  it('czytają zatwierdzeni; pending i anonim nie', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'memberships/s1_alice'), { uid: 'alice', subjectId: 's1', username: 'X', classes: [] })
+    })
+    await assertSucceeds(getDoc(doc(as('bob'), 'memberships/s1_alice')))
+    await assertFails(getDoc(doc(as('pending'), 'memberships/s1_alice')))
+    await assertFails(getDoc(doc(anon(), 'memberships/s1_alice')))
+  })
+  it('cudzego członkostwa nie usuniesz ani nie zmienisz, admin usuwa', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'memberships/s1_alice'), { uid: 'alice', subjectId: 's1', username: 'X', classes: [] })
+    })
+    await assertFails(deleteDoc(doc(as('bob'), 'memberships/s1_alice')))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_alice'), m('bob')))
+    await assertSucceeds(deleteDoc(doc(as('admin'), 'memberships/s1_alice')))
+  })
+  it('pending nie dołącza', async () => {
+    await assertFails(setDoc(doc(as('pending'), 'memberships/s1_pending'), m('pending')))
+  })
+})
+
+describe('classes: prowadzący grupy zajęciowej', () => {
+  const c = (uid: string, over: Record<string, unknown> = {}) => ({
+    subjectId: 's1',
+    form: 'CW',
+    group: '15',
+    lecturer: 'dr Jan Kowalski',
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+    ...over,
+  })
+
+  it('zatwierdzony ustawia i poprawia prowadzącego grupy (także cudzej)', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'classes/s1_CW_15'), c('bob')))
+    await assertSucceeds(setDoc(doc(as('alice'), 'classes/s1_CW_15'), c('alice', { lecturer: 'prof. Nowak' })))
+  })
+  it('id dokumentu musi pasować do przedmiotu, formy i grupy', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_CW_16'), c('bob')))
+    await assertFails(setDoc(doc(as('bob'), 'classes/cokolwiek'), c('bob')))
+  })
+  it('odrzuca za długą nazwę, zły typ, nieznaną formę i nieistniejący przedmiot', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_CW_15'), c('bob', { lecturer: 'x'.repeat(81) })))
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_CW_15'), c('bob', { lecturer: 5 })))
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_XXX_15'), c('bob', { form: 'XXX' })))
+    await assertFails(setDoc(doc(as('bob'), 'classes/brak_CW_15'), c('bob', { subjectId: 'brak' })))
+  })
+  it('podpisuje się własne uid i nie przyjmuje obcych pól', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_CW_15'), c('alice')))
+    await assertFails(setDoc(doc(as('bob'), 'classes/s1_CW_15'), c('bob', { extra: 1 })))
+  })
+  it('pending nie zapisuje i nie czyta; admin usuwa, user nie', async () => {
+    await assertFails(setDoc(doc(as('pending'), 'classes/s1_CW_15'), c('pending')))
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'classes/s1_CW_15'), c('alice'))
+    })
+    await assertFails(getDoc(doc(as('pending'), 'classes/s1_CW_15')))
+    await assertSucceeds(getDoc(doc(as('bob'), 'classes/s1_CW_15')))
+    await assertFails(deleteDoc(doc(as('bob'), 'classes/s1_CW_15')))
+    await assertSucceeds(deleteDoc(doc(as('admin'), 'classes/s1_CW_15')))
   })
 })

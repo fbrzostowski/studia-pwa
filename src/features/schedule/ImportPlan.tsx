@@ -1,19 +1,16 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
-import { useAuth } from '../../firebase/AuthContext'
+import { memberName, useAuth } from '../../firebase/AuthContext'
 import { KIND_LABEL, SUBJECT_KINDS, type Subject, type SubjectKind } from '../materials/types'
-import { parseIcs, toCandidates, type Candidate, type IcsEvent, type Skipped } from './parseIcs'
+import { plural } from '../../lib/plural'
+import { parseIcs, summarizeClasses, toCandidates, type Candidate, type IcsEvent, type Skipped } from './parseIcs'
 
 const MAX_BYTES = 2 * 1024 * 1024
 
 interface Row extends Candidate {
   include: boolean
 }
-
-// Polska odmiana: 1 termin, 2–4 terminy, 5+ terminów (12–14 też „terminów”).
-const plural = (n: number, one: string, few: string, many: string) =>
-  n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })
@@ -26,7 +23,7 @@ function findExisting(row: Pick<Row, 'code' | 'name' | 'kind'>, subjects: Subjec
 }
 
 export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; onDone: () => void }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [skipped, setSkipped] = useState<Skipped[]>([])
   const [events, setEvents] = useState<IcsEvent[]>([])
@@ -69,21 +66,38 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
     setError(null)
     try {
       const batch = writeBatch(db)
+      // Do każdego nowego i już istniejącego przedmiotu z planu dołączamy importującego.
+      const joins: { subjectId: string; row: Row }[] = []
       for (const { r } of toCreate) {
-        batch.set(doc(collection(db, 'subjects')), {
+        const ref = doc(collection(db, 'subjects'))
+        batch.set(ref, {
           name: r.name.trim(),
           kind: r.kind,
           ...(r.code ? { usosCode: r.code } : {}),
           createdBy: user!.uid,
           createdAt: serverTimestamp(),
         })
+        joins.push({ subjectId: ref.id, row: r })
       }
+      for (const { r, existing } of view) if (existing) joins.push({ subjectId: existing.id, row: r })
       if (savePlan) {
         // Firestore nie przyjmuje wartości undefined, więc pomijamy puste pola.
         const compact = events.map((e) =>
           Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined && v !== '')),
         )
         batch.set(doc(db, 'plans', user!.uid), { events: compact, fileName, importedAt: serverTimestamp() })
+        for (const { subjectId, row } of joins) {
+          const rowEvents = events.filter(
+            (e) => (row.code ? e.code === row.code : e.name === row.name) && row.forms.includes(e.form),
+          )
+          batch.set(doc(db, 'memberships', `${subjectId}_${user!.uid}`), {
+            uid: user!.uid,
+            subjectId,
+            username: memberName(profile!),
+            classes: summarizeClasses(rowEvents),
+            updatedAt: serverTimestamp(),
+          })
+        }
       }
       await batch.commit()
       onDone()
@@ -122,8 +136,9 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
               onChange={(e) => setSavePlan(e.target.checked)}
             />
             <span>
-              Zapisz mój plan zajęć ({events.length} {plural(events.length, 'termin', 'terminy', 'terminów')}) — pojawi
-              się w widoku Plan i zastąpi poprzednio zaimportowany. Widzisz go tylko Ty.
+              Zapisz mój plan ({events.length} {plural(events.length, 'termin', 'terminy', 'terminów')}) i dołącz do
+              przedmiotów. Plan widzisz tylko Ty, ale Twoja nazwa i grupy będą widoczne dla innych na stronie
+              przedmiotu (dzięki temu widać, kto ma z kim zajęcia). Zastąpi poprzednio zaimportowany plan.
             </span>
           </label>
 
@@ -161,7 +176,7 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
                       </select>
                       {existing && (
                         <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-                          Już istnieje
+                          {savePlan ? 'Już istnieje — dołączysz do niego' : 'Już istnieje'}
                         </span>
                       )}
                     </div>

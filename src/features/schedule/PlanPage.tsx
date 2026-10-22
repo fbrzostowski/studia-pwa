@@ -3,9 +3,10 @@ import { deleteDoc, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
+import { useClassDocs, useMemberships } from '../groups/hooks'
 import type { Subject } from '../materials/types'
 import ImportPlan from './ImportPlan'
-import type { IcsEvent } from './parseIcs'
+import { classKey, normGroup, type IcsEvent } from './parseIcs'
 import { addDays, fromDateKey, startOfWeek, toDateKey, toLocalIso, weekKeys } from './weeks'
 
 interface PlanDoc {
@@ -29,8 +30,13 @@ const short = (d: Date, year = false) =>
   d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}) })
 
 // Przedmiot w aplikacji pasuje do zajęć po kodzie USOS i formie (WYK+CW obejmuje WYK i CW).
-const findSubject = (subjects: Subject[], e: IcsEvent) =>
-  e.code ? subjects.find((s) => s.usosCode === e.code && s.kind.split('+').includes(e.form)) : undefined
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+const findSubject = (subjects: Subject[], e: IcsEvent) => {
+  const fits = subjects.filter((s) => s.kind.split('+').includes(e.form))
+  return (
+    (e.code ? fits.find((s) => s.usosCode === e.code) : undefined) ?? fits.find((s) => sameName(s.name, e.name))
+  )
+}
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {
   return (
@@ -43,6 +49,8 @@ function Chevron({ dir }: { dir: 'left' | 'right' }) {
 export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string) => void }) {
   const { user } = useAuth()
   const { subjects } = useSubjects()
+  const memberships = useMemberships()
+  const classDocs = useClassDocs()
   const [plan, setPlan] = useState<PlanDoc | null | undefined>(undefined) // undefined = ładowanie
   const [monday, setMonday] = useState(() => startOfWeek(new Date()))
   const [now, setNow] = useState(() => toLocalIso(new Date()))
@@ -171,6 +179,18 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                 <ul className="space-y-2">
                   {list.map((e, i) => {
                     const subject = findSubject(subjects, e)
+                    // Kto jeszcze z nas ma dokładnie tę grupę (ta sama forma i numer grupy w USOS)
+                    const together = subject
+                      ? memberships
+                          .filter(
+                            (m) =>
+                              m.subjectId === subject.id &&
+                              m.uid !== user!.uid &&
+                              (m.classes ?? []).some((c) => c.form === e.form && normGroup(c.group) === normGroup(e.group)),
+                          )
+                          .map((m) => m.username)
+                      : []
+                    const lecturer = subject ? classDocs[classKey(subject.id, e.form, e.group)]?.lecturer : undefined
                     const ongoing = e.start <= now && now < e.end
                     const past = e.end <= now
                     const body = (
@@ -187,6 +207,13 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                             {e.group && <span className="text-muted text-xs">gr. {e.group}</span>}
                             {ongoing && <span className="badge bg-accent text-white">Teraz</span>}
                           </p>
+                          {lecturer && <p className="text-muted mt-1 text-xs">{lecturer}</p>}
+                          {together.length > 0 && (
+                            <p className="text-muted mt-1 text-xs">
+                              Razem: {together.slice(0, 4).join(', ')}
+                              {together.length > 4 && ` +${together.length - 4}`}
+                            </p>
+                          )}
                         </div>
                         {subject && <span className="text-muted self-center"><Chevron dir="right" /></span>}
                       </>

@@ -137,3 +137,54 @@ export function toCandidates(events: IcsEvent[]): { candidates: Candidate[]; ski
   candidates.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
   return { candidates, skipped: [...skippedMap.values()] }
 }
+
+// ---------- grupy zajęciowe ----------
+
+/** Jedna grupa zajęciowa z USOS: forma + numer grupy (=ten sam prowadzący i termin). */
+export interface ClassInfo {
+  form: string
+  group: string // numer grupy z pliku; '' gdy brak
+  when: string[] // np. „pt 11:40–14:15”
+  rooms: string[]
+}
+
+const DAY = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb']
+
+/** Numer grupy w postaci bezpiecznej do użycia w identyfikatorze dokumentu. */
+export const normGroup = (g?: string) => (g ?? '').trim().replace(/[^\w.-]+/g, '_') || '_'
+
+/** Identyfikator grupy w obrębie przedmiotu: ten sam dla wszystkich, którzy ją mają. */
+export const classKey = (subjectId: string, form: string, group?: string) =>
+  `${subjectId}_${form}_${normGroup(group)}`
+
+const weekday = (iso: string) => new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)).getDay()
+// poniedziałek pierwszy: nd (0) trafia na koniec
+const dayOrder = (d: number) => (d + 6) % 7
+
+/** Grupy z listy terminów, z unikalnymi dniami/godzinami i salami. */
+export function summarizeClasses(events: IcsEvent[]): ClassInfo[] {
+  const map = new Map<string, { info: ClassInfo; slots: Map<string, [number, string]> }>()
+
+  for (const e of events) {
+    const key = `${e.form}|${normGroup(e.group)}`
+    let entry = map.get(key)
+    if (!entry) {
+      entry = { info: { form: e.form, group: (e.group ?? '').trim(), when: [], rooms: [] }, slots: new Map() }
+      map.set(key, entry)
+    }
+    const wd = weekday(e.start)
+    const label = `${DAY[wd]} ${e.start.slice(11)}–${e.end.slice(11)}`
+    entry.slots.set(label, [dayOrder(wd), e.start.slice(11)])
+    const room = e.room?.trim()
+    if (room && !entry.info.rooms.includes(room)) entry.info.rooms.push(room)
+  }
+
+  return [...map.values()]
+    .map(({ info, slots }) => ({
+      ...info,
+      when: [...slots.entries()]
+        .sort((a, b) => a[1][0] - b[1][0] || a[1][1].localeCompare(b[1][1]))
+        .map(([label]) => label),
+    }))
+    .sort((a, b) => a.form.localeCompare(b.form) || a.group.localeCompare(b.group, 'pl', { numeric: true }))
+}

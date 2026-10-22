@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
-import { useAuth } from '../../firebase/AuthContext'
+import { memberName, useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
 import { useSubjects } from './useSubjects'
+import SubjectGroups from '../groups/SubjectGroups'
 import { KIND_LABEL, SUBJECT_KINDS, TYPE_LABEL, TYPE_STYLE, type Material, type Subject, type SubjectKind } from './types'
 
 export default function MaterialsPage({ initialSubjectId = null }: { initialSubjectId?: string | null }) {
@@ -39,12 +40,18 @@ export default function MaterialsPage({ initialSubjectId = null }: { initialSubj
     const name = newSubject.trim()
     if (!name) return
     try {
-      await addDoc(collection(db, 'subjects'), {
-        name,
-        kind: newKind,
-        createdBy: user!.uid,
-        createdAt: serverTimestamp(),
+      // Twórca od razu należy do przedmiotu (reguły sprawdzają istnienie przedmiotu w tej samej paczce).
+      const batch = writeBatch(db)
+      const ref = doc(collection(db, 'subjects'))
+      batch.set(ref, { name, kind: newKind, createdBy: user!.uid, createdAt: serverTimestamp() })
+      batch.set(doc(db, 'memberships', `${ref.id}_${user!.uid}`), {
+        uid: user!.uid,
+        subjectId: ref.id,
+        username: memberName(profile!),
+        classes: [],
+        updatedAt: serverTimestamp(),
       })
+      await batch.commit()
       setNewSubject('')
       setAddingSubject(false)
     } catch (err) {
@@ -180,6 +187,9 @@ export default function MaterialsPage({ initialSubjectId = null }: { initialSubj
             </div>
           </div>
 
+          <SubjectGroups key={current.id} subject={current} />
+
+          <h3 className="text-muted mt-6 text-xs font-semibold tracking-wide uppercase">Materiały</h3>
           {adding && <MaterialForm subjectId={current.id} onDone={() => setAdding(false)} />}
 
           {materials.length === 0 ? (

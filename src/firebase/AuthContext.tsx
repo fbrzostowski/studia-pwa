@@ -21,6 +21,9 @@ export interface UserProfile {
 // Zgodne z regułami Firestore (users create).
 export const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,20}$/
 
+/** Nazwa zapisywana w członkostwach; musi zgadzać się z regułą (username, a w starszych kontach nazwa z Google). */
+export const memberName = (p: Pick<UserProfile, 'username' | 'displayName'>) => p.username ?? p.displayName ?? ''
+
 /** Nazwa do pokazywania innym: username, a dla starszych kont nazwa z Google. */
 export const shownName = (p: Pick<UserProfile, 'username' | 'displayName' | 'email'>) =>
   p.username || p.displayName || p.email

@@ -12,6 +12,8 @@ service cloud.firestore {
         && me().status == 'approved';
     }
     function isAdmin() { return isApproved() && me().role == 'admin'; }
+    // nazwa pokazywana innym; ta sama logika co w aplikacji (username, a dla starszych kont nazwa z Google)
+    function memberName() { return me().get('username', me().get('displayName', '')); }
     function validKind(k) { return k in ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']; }
 
     match /users/{uid} {
@@ -60,6 +62,35 @@ service cloud.firestore {
                     && validKind(request.resource.data.kind);
       allow delete: if isAdmin()
         || (isApproved() && resource.data.createdBy == request.auth.uid);
+    }
+
+    // przynależność do przedmiotu i do konkretnych grup zajęciowych (z planu USOS)
+    match /memberships/{id} {
+      allow read: if isApproved();
+      allow create, update: if isApproved()
+                            && request.resource.data.keys().hasOnly(['uid', 'subjectId', 'username', 'classes', 'updatedAt'])
+                            && request.resource.data.uid == request.auth.uid
+                            && id == request.resource.data.subjectId + '_' + request.auth.uid
+                            && request.resource.data.username == memberName()
+                            && request.resource.data.classes is list
+                            && request.resource.data.classes.size() <= 20
+                            && existsAfter(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId));
+      allow delete: if isAdmin() || (isApproved() && resource.data.uid == request.auth.uid);
+    }
+
+    // wspólne dane grupy zajęciowej (prowadzący); edytuje każdy zatwierdzony uczestnik
+    match /classes/{id} {
+      allow read: if isApproved();
+      allow create, update: if isApproved()
+                            && request.resource.data.keys().hasOnly(['subjectId', 'form', 'group', 'lecturer', 'updatedBy', 'updatedAt'])
+                            && request.resource.data.updatedBy == request.auth.uid
+                            && request.resource.data.lecturer is string
+                            && request.resource.data.lecturer.size() <= 80
+                            && request.resource.data.form in ['WYK', 'LAB', 'KON', 'CW']
+                            && request.resource.data.group.matches('^[A-Za-z0-9_.-]{1,20}$')
+                            && id == request.resource.data.subjectId + '_' + request.resource.data.form + '_' + request.resource.data.group
+                            && exists(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId));
+      allow delete: if isAdmin();
     }
 
     match /materials/{docId} {

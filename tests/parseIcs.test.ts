@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { parseIcs, toCandidates } from '../src/features/schedule/parseIcs'
+import { classKey, normGroup, parseIcs, summarizeClasses, toCandidates } from '../src/features/schedule/parseIcs'
 
 const text = readFileSync('tests/fixtures/plan.ics', 'utf8')
 const { candidates, skipped } = toCandidates(parseIcs(text))
@@ -46,5 +46,48 @@ describe('toCandidates', () => {
   it('nieobsługiwane formy są pomijane i zgłaszane', () => {
     expect(by('Lektorat')).toHaveLength(0)
     expect(skipped).toEqual([{ name: 'Lektorat', form: 'LEKT', count: 1 }])
+  })
+})
+
+describe('summarizeClasses', () => {
+  const events = parseIcs(text)
+  const of = (code: string) => summarizeClasses(events.filter((e) => e.code === code))
+
+  it('wykład i ćwiczenia z jednego przedmiotu to osobne grupy z własnym terminem i salą', () => {
+    expect(of('100-D')).toEqual([
+      { form: 'CW', group: '15', when: ['pt 11:40–13:15'], rooms: ['B-2'] },
+      { form: 'WYK', group: '1', when: ['cz 09:50–11:30'], rooms: ['A-1'] },
+    ])
+  })
+  it('brak sali daje pustą listę, a nie undefined', () => {
+    expect(of('300-D')[0].rooms).toEqual([])
+  })
+  it('ta sama grupa w kilku dniach tygodnia zbiera terminy w kolejności pn→nd', () => {
+    const ev = ['2026-10-06', '2026-10-09', '2026-10-13'].map((d) => ({
+      code: 'X', name: 'X', form: 'CW', group: '4', room: 'S-1', start: `${d}T08:00`, end: `${d}T09:40`,
+    }))
+    expect(summarizeClasses(ev)[0].when).toEqual(['wt 08:00–09:40', 'pt 08:00–09:40'])
+  })
+  it('różne sale tej samej grupy są zebrane bez duplikatów', () => {
+    const ev = ['2026-10-05', '2026-10-12', '2026-10-19'].map((d, i) => ({
+      code: 'X', name: 'X', form: 'WYK', group: '3', room: i === 1 ? 'G-316' : 'G-Aula', start: `${d}T09:50`, end: `${d}T11:30`,
+    }))
+    const [c] = summarizeClasses(ev)
+    expect(c.when).toEqual(['pn 09:50–11:30'])
+    expect(c.rooms.sort()).toEqual(['G-316', 'G-Aula'])
+  })
+})
+
+describe('klucze grup', () => {
+  it('normGroup czyści znaki niedozwolone w id i obsługuje brak grupy', () => {
+    expect(normGroup('4')).toBe('4')
+    expect(normGroup(' 15, ')).toBe('15_')
+    expect(normGroup(undefined)).toBe('_')
+    expect(normGroup('')).toBe('_')
+  })
+  it('classKey jest stabilny i różny dla różnych grup', () => {
+    expect(classKey('abc', 'CW', '15')).toBe('abc_CW_15')
+    expect(classKey('abc', 'CW', '15')).not.toBe(classKey('abc', 'CW', '16'))
+    expect(classKey('abc', 'WYK', '15')).not.toBe(classKey('abc', 'CW', '15'))
   })
 })
