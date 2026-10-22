@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { deleteDoc, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
@@ -7,7 +7,7 @@ import { useClassDocs, useMemberships } from '../groups/hooks'
 import type { Subject } from '../materials/types'
 import ImportPlan from './ImportPlan'
 import { classKey, normGroup, type IcsEvent } from './parseIcs'
-import { addDays, fromDateKey, startOfWeek, toDateKey, toLocalIso, weekKeys } from './weeks'
+import { addDays, fromDateKey, toDateKey, toLocalIso, upcomingDayKeys } from './weeks'
 
 interface PlanDoc {
   events: IcsEvent[]
@@ -26,8 +26,6 @@ const FORM_FALLBACK = 'bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-g
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const dayTitle = (key: string) =>
   cap(fromDateKey(key).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }))
-const short = (d: Date, year = false) =>
-  d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}) })
 
 // Przedmiot w aplikacji pasuje do zajęć po kodzie USOS i formie (WYK+CW obejmuje WYK i CW).
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -38,13 +36,15 @@ const findSubject = (subjects: Subject[], e: IcsEvent) => {
   )
 }
 
-function Chevron({ dir }: { dir: 'left' | 'right' }) {
+function Chevron() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={dir === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
+      <path d="M9 18l6-6-6-6" />
     </svg>
   )
 }
+
+const PAGE_DAYS = 7
 
 export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string) => void }) {
   const { user } = useAuth()
@@ -52,11 +52,10 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
   const memberships = useMemberships()
   const classDocs = useClassDocs()
   const [plan, setPlan] = useState<PlanDoc | null | undefined>(undefined) // undefined = ładowanie
-  const [monday, setMonday] = useState(() => startOfWeek(new Date()))
+  const [limit, setLimit] = useState(PAGE_DAYS)
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const todayRef = useRef<HTMLElement | null>(null)
 
   useEffect(
     () =>
@@ -87,18 +86,11 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
     return m
   }, [plan])
 
-  const keys = weekKeys(monday)
+  // Dziś i kolejne dni z zajęciami; po końcu dzisiejszych zajęć od jutra (`now` tyka co minutę).
+  const days = useMemo(() => upcomingDayKeys(plan?.events ?? [], now), [plan, now])
+  const visible = days.slice(0, limit)
   const todayKey = now.slice(0, 10)
-  const thisWeek = toDateKey(monday) === toDateKey(startOfWeek(new Date()))
-  // Pn–Pt pokazujemy zawsze, sobotę i niedzielę tylko gdy są zajęcia.
-  const days = keys.filter((k, i) => i < 5 || byDay.has(k))
-  const weekHasEvents = keys.some((k) => byDay.has(k))
-
-  // Po załadowaniu (i po „Dziś”) przewiń do dzisiejszego dnia, żeby nie zaczynać od minionych zajęć.
-  const ready = !!plan
-  useEffect(() => {
-    if (ready && thisWeek && !importing) todayRef.current?.scrollIntoView({ block: 'start' })
-  }, [ready, thisWeek, importing])
+  const tomorrowKey = toDateKey(addDays(fromDateKey(todayKey), 1))
 
   const removePlan = async () => {
     if (!confirm('Usunąć zaimportowany plan zajęć? Przedmioty zostaną.')) return
@@ -128,50 +120,28 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
     )
   }
 
-  const last = addDays(monday, 6)
-
   return (
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      <div className="flex items-center gap-1">
-        <button className="btn-ghost px-2.5" onClick={() => setMonday(addDays(monday, -7))} aria-label="Poprzedni tydzień">
-          <Chevron dir="left" />
-        </button>
-        <h2 className="min-w-0 flex-1 text-center text-base font-semibold tracking-tight">
-          {short(monday)} – {short(last, true)}
-        </h2>
-        <button className="btn-ghost px-2.5" onClick={() => setMonday(addDays(monday, 7))} aria-label="Następny tydzień">
-          <Chevron dir="right" />
-        </button>
-      </div>
-      <div className="mt-1 flex justify-center">
-        <button
-          className="btn-ghost min-h-8 py-1 text-xs"
-          disabled={thisWeek}
-          onClick={() => setMonday(startOfWeek(new Date()))}
-        >
-          Dziś
-        </button>
-      </div>
-
-      {!weekHasEvents && (
-        <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-6 text-center text-sm">
-          W tym tygodniu nie ma zajęć.
+      {visible.length === 0 && (
+        <p className="border-line text-muted rounded-2xl border border-dashed p-6 text-center text-sm">
+          Brak nadchodzących zajęć w zaimportowanym planie.
         </p>
       )}
 
-      <div className="mt-4 space-y-5">
-        {days.map((k) => {
+      <div className="space-y-5">
+        {visible.map((k) => {
           const list = byDay.get(k) ?? []
           const isToday = k === todayKey
           return (
-            <section key={k} ref={isToday ? todayRef : undefined} className="scroll-mt-20">
+            <section key={k}>
               <h3
                 className={`mb-2 flex items-center gap-2 text-sm font-semibold ${isToday ? 'text-accent' : 'text-muted'}`}
               >
                 {dayTitle(k)}
                 {isToday && <span className="badge bg-accent text-white">Dziś</span>}
+                {k === tomorrowKey && <span className="badge bg-accent-soft text-accent">Jutro</span>}
               </h3>
               {list.length === 0 ? (
                 <p className="text-muted text-sm">Brak zajęć</p>
@@ -215,7 +185,7 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                             </p>
                           )}
                         </div>
-                        {subject && <span className="text-muted self-center"><Chevron dir="right" /></span>}
+                        {subject && <span className="text-muted self-center"><Chevron /></span>}
                       </>
                     )
                     const cls = `card flex w-full items-start gap-3 p-3.5 ${past ? 'opacity-55' : ''} ${ongoing ? 'ring-accent ring-2' : ''}`
@@ -237,6 +207,12 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
           )
         })}
       </div>
+
+      {days.length > visible.length && (
+        <button className="btn-secondary mt-5 w-full" onClick={() => setLimit((l) => l + PAGE_DAYS)}>
+          Pokaż kolejne dni
+        </button>
+      )}
 
       <div className="border-line mt-8 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
         <p className="text-muted text-xs">
