@@ -18,7 +18,7 @@ const DRIVE_SYNC_SERVICE_ACCOUNT = defineString('DRIVE_SYNC_SERVICE_ACCOUNT', {
 
 // Jedna instancja naraz: dwie równoległe synchronizacje nie powinny się ścigać.
 setGlobalOptions({
-  region: 'europe-central2',
+  region: 'europe-west1',
   serviceAccount: DRIVE_SYNC_SERVICE_ACCOUNT,
   memory: '512MiB',
   timeoutSeconds: 540,

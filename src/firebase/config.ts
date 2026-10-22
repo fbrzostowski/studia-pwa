@@ -22,5 +22,5 @@ export const db = initializeFirestore(app, {
 })
 export const storage = getStorage(app)
 // ten sam region co w functions/src/index.ts
-export const functions = getFunctions(app, 'europe-central2')
+export const functions = getFunctions(app, 'europe-west1')
 export const googleProvider = new GoogleAuthProvider()
