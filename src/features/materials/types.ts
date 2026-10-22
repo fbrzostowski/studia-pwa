@@ -16,6 +16,7 @@ export interface Subject {
   id: string
   name: string
   kind: SubjectKind
+  usosCode?: string // Sygnatura z USOS (import planu), do wykrywania duplikatów
   createdBy: string
 }
 

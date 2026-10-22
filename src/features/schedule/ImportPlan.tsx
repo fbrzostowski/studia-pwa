@@ -1,0 +1,178 @@
+import { useMemo, useState, type ChangeEvent } from 'react'
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { db } from '../../firebase/config'
+import { useAuth } from '../../firebase/AuthContext'
+import { KIND_LABEL, SUBJECT_KINDS, type Subject, type SubjectKind } from '../materials/types'
+import { parseIcs, toCandidates, type Candidate, type Skipped } from './parseIcs'
+
+const MAX_BYTES = 2 * 1024 * 1024
+
+interface Row extends Candidate {
+  include: boolean
+}
+
+// Polska odmiana: 1 termin, 2–4 terminy, 5+ terminów (12–14 też „terminów”).
+const plural = (n: number, one: string, few: string, many: string) =>
+  n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+const fmt = (iso: string) => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })
+
+// Przedmiot już istnieje, jeśli ma ten sam kod USOS i rodzaj albo tę samą nazwę i rodzaj.
+function findExisting(row: Pick<Row, 'code' | 'name' | 'kind'>, subjects: Subject[]) {
+  return subjects.find(
+    (s) => s.kind === row.kind && ((row.code && s.usosCode === row.code) || norm(s.name) === norm(row.name)),
+  )
+}
+
+export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; onDone: () => void }) {
+  const { user } = useAuth()
+  const [rows, setRows] = useState<Row[] | null>(null)
+  const [skipped, setSkipped] = useState<Skipped[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+    setRows(null)
+    if (file.size > MAX_BYTES) return setError('Plik jest za duży jak na plan zajęć (limit 2 MB).')
+    try {
+      const events = parseIcs(await file.text())
+      if (events.length === 0) return setError('Nie znalazłem w tym pliku zajęć. Czy to plik .ics z planem z USOS?')
+      const res = toCandidates(events)
+      setSkipped(res.skipped)
+      setRows(res.candidates.map((c) => ({ ...c, include: true })))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const patch = (key: string, p: Partial<Row>) =>
+    setRows((rs) => rs!.map((r) => (r.key === key ? { ...r, ...p } : r)))
+
+  // Wiersze z już istniejącym przedmiotem są wyłączone z tworzenia.
+  const view = useMemo(
+    () => (rows ?? []).map((r) => ({ r, existing: findExisting(r, subjects) })),
+    [rows, subjects],
+  )
+  const toCreate = view.filter((v) => v.r.include && !v.existing && v.r.name.trim())
+
+  const create = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const batch = writeBatch(db)
+      for (const { r } of toCreate) {
+        batch.set(doc(collection(db, 'subjects')), {
+          name: r.name.trim(),
+          kind: r.kind,
+          ...(r.code ? { usosCode: r.code } : {}),
+          createdBy: user!.uid,
+          createdAt: serverTimestamp(),
+        })
+      }
+      await batch.commit()
+      onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card mt-2 space-y-3 p-4">
+      <div>
+        <h3 className="font-medium">Import planu z USOS</h3>
+        <p className="text-muted mt-0.5 text-sm">
+          Wgraj plik .ics wyeksportowany z kalendarza USOS. Utworzę brakujące przedmioty; wykład i ćwiczenia z
+          tego samego przedmiotu połączę w WYK+CW.
+        </p>
+      </div>
+
+      <input
+        type="file"
+        accept=".ics,text/calendar"
+        onChange={onFile}
+        className="text-muted file:bg-accent-soft file:text-accent block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3.5 file:py-2 file:text-sm file:font-medium"
+      />
+
+      {error && <p className="text-danger text-sm">{error}</p>}
+
+      {rows && (
+        <>
+          <ul className="divide-line border-line divide-y rounded-xl border">
+            {view.map(({ r, existing }) => (
+              <li key={r.key} className="space-y-2 p-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="accent-accent mt-3 h-4 w-4 shrink-0"
+                    checked={r.include && !existing}
+                    disabled={!!existing}
+                    onChange={(e) => patch(r.key, { include: e.target.checked })}
+                    aria-label={`Utwórz ${r.name}`}
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <input
+                      className="input py-2"
+                      value={r.name}
+                      onChange={(e) => patch(r.key, { name: e.target.value })}
+                      aria-label="Nazwa przedmiotu"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className="input max-w-full py-1.5 sm:w-auto"
+                        value={r.kind}
+                        onChange={(e) => patch(r.key, { kind: e.target.value as SubjectKind })}
+                        aria-label="Rodzaj zajęć"
+                      >
+                        {SUBJECT_KINDS.map((k) => (
+                          <option key={k} value={k}>
+                            {k} — {KIND_LABEL[k]}
+                          </option>
+                        ))}
+                      </select>
+                      {existing && (
+                        <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                          Już istnieje
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-muted text-xs">
+                      Z pliku: {r.forms.join(' + ')} · {r.count} {plural(r.count, 'termin', 'terminy', 'terminów')} ·{' '}
+                      {fmt(r.firstDate)} – {fmt(r.lastDate)}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {skipped.length > 0 && (
+            <p className="rounded-xl bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
+              Pominąłem formy zajęć, których aplikacja nie obsługuje:{' '}
+              {skipped.map((s) => `${s.name} (${s.form}, ${s.count})`).join('; ')}.
+            </p>
+          )}
+        </>
+      )}
+
+      <div className="flex gap-2">
+        {rows && (
+          <button className="btn-primary" disabled={busy || toCreate.length === 0} onClick={create}>
+            {busy
+              ? 'Tworzę…'
+              : toCreate.length === 0
+                ? 'Nic do utworzenia'
+                : `Utwórz ${toCreate.length} ${plural(toCreate.length, 'przedmiot', 'przedmioty', 'przedmiotów')}`}
+          </button>
+        )}
+        <button className="btn-ghost" onClick={onDone}>
+          {rows ? 'Anuluj' : 'Zamknij'}
+        </button>
+      </div>
+    </div>
+  )
+}

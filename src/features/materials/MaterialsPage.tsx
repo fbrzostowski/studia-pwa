@@ -4,6 +4,7 @@ import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
+import ImportPlan from '../schedule/ImportPlan'
 import { KIND_LABEL, SUBJECT_KINDS, TYPE_LABEL, TYPE_STYLE, type Material, type Subject, type SubjectKind } from './types'
 
 export default function MaterialsPage() {
@@ -16,6 +17,7 @@ export default function MaterialsPage() {
   const [newKind, setNewKind] = useState<SubjectKind>('WYK')
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(
@@ -121,13 +123,30 @@ export default function MaterialsPage() {
         <li>
           <button
             className="chip border-dashed text-accent"
-            onClick={() => setAddingSubject((v) => !v)}
+            onClick={() => {
+              setAddingSubject((v) => !v)
+              setImporting(false)
+            }}
             aria-expanded={addingSubject}
           >
             + Przedmiot
           </button>
         </li>
+        <li>
+          <button
+            className="chip border-dashed text-accent"
+            onClick={() => {
+              setImporting((v) => !v)
+              setAddingSubject(false)
+            }}
+            aria-expanded={importing}
+          >
+            Import z USOS (.ics)
+          </button>
+        </li>
       </ul>
+
+      {importing && <ImportPlan subjects={subjects} onDone={() => setImporting(false)} />}
 
       {addingSubject && (
         <form onSubmit={addSubject} className="card mt-2 space-y-3 p-3">
