@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function signedIn() { return request.auth != null; }
+    function isApproved() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().status == 'approved';
+    }
+    function isAdmin() { return isApproved() && me().role == 'admin'; }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // pierwsze logowanie: wyłącznie pending/user
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.role == 'user';
+      // user może zmienić tylko pola profilu, nie role/status/review*
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['displayName', 'email', 'photoURL']);
+      // admin zmienia wszystko (zatwierdzanie, role)
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /subjects/{docId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isApproved() && resource.data.createdBy == request.auth.uid);
+    }
+
+    match /materials/{docId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isApproved() && resource.data.ownerId == request.auth.uid);
+    }
+
+    match /exams/{docId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isApproved() && resource.data.createdBy == request.auth.uid);
+    }
+
+    match /textbooks/{docId} {
+      allow read: if isApproved();
+      allow write: if false; // tylko Cloud Function (Admin SDK)
+    }
+  }
+}
