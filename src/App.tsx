@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { db } from './firebase/config'
 import { AuthProvider, shownName, useAuth } from './firebase/AuthContext'
 import UsernameForm from './features/profile/UsernameForm'
 import MaterialsPage from './features/materials/MaterialsPage'
-import AccessRequests from './features/admin/AccessRequests'
+import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
 
@@ -29,7 +31,6 @@ function Centered({ children }: { children: ReactNode }) {
 
 function Gate() {
   const { user, profile, loading, error, login, logout } = useAuth()
-  const [tab, setTab] = useState<'materials' | 'admin'>('materials')
 
   if (loading) {
     return (
@@ -87,61 +88,81 @@ function Gate() {
     )
   }
 
-  const isAdmin = profile.role === 'admin'
-  const initial = shownName(profile).charAt(0).toUpperCase()
+  return <Panel />
+}
+
+// Panel zalogowanego, zatwierdzonego użytkownika: materiały + ustawienia pod ikoną profilu.
+function Panel() {
+  const { profile } = useAuth()
+  const [view, setView] = useState<'main' | 'settings'>('main')
+  const isAdmin = profile!.role === 'admin'
+  const pending = usePendingCount(isAdmin)
+  const settings = view === 'settings'
+  const initial = shownName(profile!).charAt(0).toUpperCase()
 
   return (
     <>
       <OfflineBanner />
       <header className="border-line bg-surface/85 sticky top-0 z-10 border-b pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
-          <img src={logo} alt="" className="h-8 w-8" />
-          <span className="hidden text-lg font-semibold tracking-tight sm:inline">Studia</span>
-
-          {isAdmin && (
-            <nav className="ml-2 flex gap-1">
-              {(
-                [
-                  ['materials', 'Materiały'],
-                  ['admin', 'Użytkownicy'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  aria-current={tab === id}
-                  onClick={() => setTab(id)}
-                  className="text-muted aria-[current=true]:bg-accent-soft aria-[current=true]:text-accent rounded-lg px-3 py-1.5 text-sm font-medium"
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+          {settings ? (
+            <>
+              <button className="btn-ghost -ml-2 px-2.5" onClick={() => setView('main')} aria-label="Wróć">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <h1 className="text-lg font-semibold tracking-tight">Ustawienia</h1>
+            </>
+          ) : (
+            <>
+              <img src={logo} alt="" className="h-8 w-8" />
+              <span className="text-lg font-semibold tracking-tight">Studia</span>
+            </>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
-            {profile.photoURL ? (
-              <img src={profile.photoURL} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full" />
+          <button
+            className={`relative ml-auto rounded-full ${settings ? 'ring-accent ring-2 ring-offset-2 ring-offset-surface' : ''}`}
+            onClick={() => setView(settings ? 'main' : 'settings')}
+            aria-label={pending > 0 ? `Ustawienia (${pending} wniosków o dostęp)` : 'Ustawienia'}
+            aria-pressed={settings}
+          >
+            {profile!.photoURL ? (
+              <img src={profile!.photoURL} alt="" referrerPolicy="no-referrer" className="h-9 w-9 rounded-full" />
             ) : (
-              <span className="bg-accent-soft text-accent flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold">
+              <span className="bg-accent-soft text-accent flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold">
                 {initial}
               </span>
             )}
-            <button className="btn-ghost max-sm:px-2.5" onClick={logout} aria-label="Wyloguj" title="Wyloguj">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-              </svg>
-              <span className="max-sm:hidden">Wyloguj</span>
-            </button>
-          </div>
+            {pending > 0 && (
+              <span className="bg-danger border-surface absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 px-1 text-[10px] leading-none font-bold text-white">
+                {pending}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <InstallHint />
-        {tab === 'admin' && isAdmin ? <AccessRequests /> : <MaterialsPage />}
+        {settings ? <SettingsPage /> : <MaterialsPage />}
       </main>
     </>
   )
+}
+
+// Liczba oczekujących wniosków — tylko dla admina (reguły i tak blokują zwykłym użytkownikom).
+function usePendingCount(enabled: boolean) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!enabled) return
+    return onSnapshot(
+      query(collection(db, 'users'), where('status', '==', 'pending')),
+      (snap) => setCount(snap.size),
+      () => setCount(0),
+    )
+  }, [enabled])
+  return enabled ? count : 0
 }
 
 export default function App() {
