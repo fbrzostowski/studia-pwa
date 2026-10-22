@@ -44,6 +44,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // osobisty plan zajęć z USOS: jeden dokument na użytkownika, widoczny tylko dla niego
+    match /plans/{uid} {
+      allow read, delete: if isApproved() && request.auth.uid == uid;
+      allow create, update: if isApproved() && request.auth.uid == uid
+                            && request.resource.data.events is list
+                            && request.resource.data.events.size() <= 1000;
+    }
+
     match /subjects/{docId} {
       allow read: if isApproved();
       allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid

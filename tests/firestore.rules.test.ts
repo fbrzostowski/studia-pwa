@@ -218,3 +218,34 @@ describe('textbooks: zapis tylko przez Admin SDK', () => {
     await assertFails(setDoc(doc(as('alice'), 'textbooks/t2'), { title: 'X' }))
   })
 })
+
+describe('plans: osobisty plan zajęć', () => {
+  const plan = (n = 3) => ({ events: Array.from({ length: n }, (_, i) => ({ name: `E${i}`, start: '2026-10-01T08:00' })) })
+
+  it('approved zapisuje, czyta, podmienia i usuwa własny plan', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan()))
+    await assertSucceeds(getDoc(doc(as('alice'), 'plans/alice')))
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(5)))
+    await assertSucceeds(deleteDoc(doc(as('alice'), 'plans/alice')))
+  })
+  it('cudzego planu nie czyta ani nie zapisuje nikt, nawet admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'plans/alice'), plan())
+    })
+    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertFails(getDoc(doc(as('admin'), 'plans/alice')))
+    await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan()))
+    await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
+  })
+  it('pending, rejected i anonim nie mają planu', async () => {
+    await assertFails(setDoc(doc(as('pending'), 'plans/pending'), plan()))
+    await assertFails(setDoc(doc(as('rejected'), 'plans/rejected'), plan()))
+    await assertFails(getDoc(doc(anon(), 'plans/alice')))
+  })
+  it('events musi być listą do 1000 pozycji', async () => {
+    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), { events: 'x' }))
+    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), { foo: 1 }))
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(1000)))
+    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), plan(1001)))
+  })
+})

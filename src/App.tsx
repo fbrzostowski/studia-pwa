@@ -4,6 +4,7 @@ import { db } from './firebase/config'
 import { AuthProvider, shownName, useAuth } from './firebase/AuthContext'
 import UsernameForm from './features/profile/UsernameForm'
 import MaterialsPage from './features/materials/MaterialsPage'
+import PlanPage from './features/schedule/PlanPage'
 import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
@@ -91,14 +92,27 @@ function Gate() {
   return <Panel />
 }
 
-// Panel zalogowanego, zatwierdzonego użytkownika: materiały + ustawienia pod ikoną profilu.
+type Tab = 'plan' | 'materials'
+
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'plan', label: 'Plan', icon: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z' },
+  { id: 'materials', label: 'Materiały', icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z' },
+]
+
+// Panel zalogowanego, zatwierdzonego użytkownika: plan, materiały i ustawienia pod ikoną profilu.
 function Panel() {
   const { profile } = useAuth()
-  const [view, setView] = useState<'main' | 'settings'>('main')
+  const [tab, setTab] = useState<Tab>('plan')
+  const [settings, setSettings] = useState(false)
+  const [focusSubject, setFocusSubject] = useState<string | null>(null)
   const isAdmin = profile!.role === 'admin'
   const pending = usePendingCount(isAdmin)
-  const settings = view === 'settings'
   const initial = shownName(profile!).charAt(0).toUpperCase()
+  const go = (t: Tab) => {
+    setFocusSubject(null)
+    setTab(t)
+    setSettings(false)
+  }
 
   return (
     <>
@@ -107,7 +121,7 @@ function Panel() {
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
           {settings ? (
             <>
-              <button className="btn-ghost -ml-2 px-2.5" onClick={() => setView('main')} aria-label="Wróć">
+              <button className="btn-ghost -ml-2 px-2.5" onClick={() => setSettings(false)} aria-label="Wróć">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
@@ -121,9 +135,22 @@ function Panel() {
             </>
           )}
 
+          <nav className="ml-2 hidden gap-1 sm:flex" aria-label="Główna nawigacja">
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                aria-current={!settings && tab === id}
+                onClick={() => go(id)}
+                className="text-muted aria-[current=true]:bg-accent-soft aria-[current=true]:text-accent rounded-lg px-3 py-1.5 text-sm font-medium"
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
           <button
             className={`relative ml-auto rounded-full ${settings ? 'ring-accent ring-2 ring-offset-2 ring-offset-surface' : ''}`}
-            onClick={() => setView(settings ? 'main' : 'settings')}
+            onClick={() => setSettings((v) => !v)}
             aria-label={pending > 0 ? `Ustawienia (${pending} wniosków o dostęp)` : 'Ustawienia'}
             aria-pressed={settings}
           >
@@ -143,10 +170,43 @@ function Panel() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+      <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-8">
         <InstallHint />
-        {settings ? <SettingsPage /> : <MaterialsPage />}
+        {settings ? (
+          <SettingsPage />
+        ) : tab === 'plan' ? (
+          <PlanPage
+            onOpenSubject={(id) => {
+              setFocusSubject(id)
+              setTab('materials')
+            }}
+          />
+        ) : (
+          <MaterialsPage key={focusSubject ?? 'none'} initialSubjectId={focusSubject} />
+        )}
       </main>
+
+      <nav
+        className="border-line bg-surface/90 fixed inset-x-0 bottom-0 z-10 flex border-t pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+        aria-label="Główna nawigacja"
+      >
+        {TABS.map(({ id, label, icon }) => {
+          const active = !settings && tab === id
+          return (
+            <button
+              key={id}
+              aria-current={active}
+              onClick={() => go(id)}
+              className="text-muted aria-[current=true]:text-accent flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={icon} />
+              </svg>
+              {label}
+            </button>
+          )
+        })}
+      </nav>
     </>
   )
 }

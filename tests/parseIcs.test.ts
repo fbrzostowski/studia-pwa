@@ -10,7 +10,7 @@ describe('parseIcs', () => {
   it('wczytuje wszystkie zdarzenia z polami USOS', () => {
     const ev = parseIcs(text)
     expect(ev).toHaveLength(10)
-    expect(ev[0]).toMatchObject({ code: '100-D', name: 'Algebra', form: 'WYK', group: '1', room: 'A-1', start: '2026-10-01T09:50' })
+    expect(ev[0]).toMatchObject({ code: '100-D', name: 'Algebra', form: 'WYK', group: '1', room: 'A-1', start: '2026-10-01T09:50', end: '2026-10-01T11:30' })
   })
   it('radzi sobie z brakiem sali i z escape\'owanymi przecinkami', () => {
     const ev = parseIcs(text)

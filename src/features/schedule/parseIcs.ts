@@ -11,6 +11,7 @@ export interface IcsEvent {
   group?: string
   room?: string
   start: string // czas lokalny, YYYY-MM-DDTHH:mm
+  end: string
 }
 
 export interface Candidate {
@@ -52,6 +53,7 @@ export function parseIcs(text: string): IcsEvent[] {
 
   for (const b of blocks) {
     const start = toLocalIso(prop(b, 'DTSTART'))
+    const end = toLocalIso(prop(b, 'DTEND')) || start
     const desc = unescapeText(prop(b, 'DESCRIPTION'))
     // Linie opisu mogą się różnić (np. brak „Sala:”), więc każde pole wyciągamy osobno.
     const field = (re: RegExp) => desc.match(re)?.[1].trim() ?? ''
@@ -66,6 +68,7 @@ export function parseIcs(text: string): IcsEvent[] {
       group: field(/Grupa:\s*([^,\n]+)/) || undefined,
       room: field(/^Sala:\s*(.+)$/m) || undefined,
       start,
+      end,
     })
   }
   return events

@@ -4,40 +4,21 @@ import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
-import ImportPlan from '../schedule/ImportPlan'
+import { useSubjects } from './useSubjects'
 import { KIND_LABEL, SUBJECT_KINDS, TYPE_LABEL, TYPE_STYLE, type Material, type Subject, type SubjectKind } from './types'
 
-export default function MaterialsPage() {
+export default function MaterialsPage({ initialSubjectId = null }: { initialSubjectId?: string | null }) {
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
-  const [subjects, setSubjects] = useState<Subject[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
+  const { subjects, error: subjectsError } = useSubjects()
+  const [selected, setSelected] = useState<string | null>(initialSubjectId)
   const [materials, setMaterials] = useState<Material[]>([])
   const [newSubject, setNewSubject] = useState('')
   const [newKind, setNewKind] = useState<SubjectKind>('WYK')
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(
-    () =>
-      onSnapshot(
-        collection(db, 'subjects'),
-        (snap) =>
-          setSubjects(
-            snap.docs
-              .map((d) => ({ id: d.id, ...(d.data() as Omit<Subject, 'id'>) }))
-              .sort(
-                (a, b) =>
-                  a.name.localeCompare(b.name, 'pl') ||
-                  SUBJECT_KINDS.indexOf(a.kind) - SUBJECT_KINDS.indexOf(b.kind),
-              ),
-          ),
-        (e) => setError(e.message),
-      ),
-    [],
-  )
+  const [localError, setError] = useState<string | null>(null)
+  const error = localError ?? subjectsError
 
   useEffect(() => {
     if (!selected) return
@@ -123,30 +104,13 @@ export default function MaterialsPage() {
         <li>
           <button
             className="chip border-dashed text-accent"
-            onClick={() => {
-              setAddingSubject((v) => !v)
-              setImporting(false)
-            }}
+            onClick={() => setAddingSubject((v) => !v)}
             aria-expanded={addingSubject}
           >
             + Przedmiot
           </button>
         </li>
-        <li>
-          <button
-            className="chip border-dashed text-accent"
-            onClick={() => {
-              setImporting((v) => !v)
-              setAddingSubject(false)
-            }}
-            aria-expanded={importing}
-          >
-            Import z USOS (.ics)
-          </button>
-        </li>
       </ul>
-
-      {importing && <ImportPlan subjects={subjects} onDone={() => setImporting(false)} />}
 
       {addingSubject && (
         <form onSubmit={addSubject} className="card mt-2 space-y-3 p-3">

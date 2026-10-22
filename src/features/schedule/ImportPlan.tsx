@@ -3,7 +3,7 @@ import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { KIND_LABEL, SUBJECT_KINDS, type Subject, type SubjectKind } from '../materials/types'
-import { parseIcs, toCandidates, type Candidate, type Skipped } from './parseIcs'
+import { parseIcs, toCandidates, type Candidate, type IcsEvent, type Skipped } from './parseIcs'
 
 const MAX_BYTES = 2 * 1024 * 1024
 
@@ -29,6 +29,9 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
   const { user } = useAuth()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [skipped, setSkipped] = useState<Skipped[]>([])
+  const [events, setEvents] = useState<IcsEvent[]>([])
+  const [fileName, setFileName] = useState('')
+  const [savePlan, setSavePlan] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -42,6 +45,8 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
       const events = parseIcs(await file.text())
       if (events.length === 0) return setError('Nie znalazłem w tym pliku zajęć. Czy to plik .ics z planem z USOS?')
       const res = toCandidates(events)
+      setEvents(events)
+      setFileName(file.name)
       setSkipped(res.skipped)
       setRows(res.candidates.map((c) => ({ ...c, include: true })))
     } catch (err) {
@@ -73,6 +78,13 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
           createdAt: serverTimestamp(),
         })
       }
+      if (savePlan) {
+        // Firestore nie przyjmuje wartości undefined, więc pomijamy puste pola.
+        const compact = events.map((e) =>
+          Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined && v !== '')),
+        )
+        batch.set(doc(db, 'plans', user!.uid), { events: compact, fileName, importedAt: serverTimestamp() })
+      }
       await batch.commit()
       onDone()
     } catch (err) {
@@ -102,6 +114,19 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
 
       {rows && (
         <>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="accent-accent mt-0.5 h-4 w-4 shrink-0"
+              checked={savePlan}
+              onChange={(e) => setSavePlan(e.target.checked)}
+            />
+            <span>
+              Zapisz mój plan zajęć ({events.length} {plural(events.length, 'termin', 'terminy', 'terminów')}) — pojawi
+              się w widoku Plan i zastąpi poprzednio zaimportowany. Widzisz go tylko Ty.
+            </span>
+          </label>
+
           <ul className="divide-line border-line divide-y rounded-xl border">
             {view.map(({ r, existing }) => (
               <li key={r.key} className="space-y-2 p-3">
@@ -161,12 +186,17 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
 
       <div className="flex gap-2">
         {rows && (
-          <button className="btn-primary" disabled={busy || toCreate.length === 0} onClick={create}>
+          <button className="btn-primary" disabled={busy || (toCreate.length === 0 && !savePlan)} onClick={create}>
             {busy
-              ? 'Tworzę…'
-              : toCreate.length === 0
-                ? 'Nic do utworzenia'
-                : `Utwórz ${toCreate.length} ${plural(toCreate.length, 'przedmiot', 'przedmioty', 'przedmiotów')}`}
+              ? 'Zapisuję…'
+              : [
+                  toCreate.length > 0 &&
+                    `Utwórz ${toCreate.length} ${plural(toCreate.length, 'przedmiot', 'przedmioty', 'przedmiotów')}`,
+                  savePlan && 'zapisz plan',
+                ]
+                  .filter(Boolean)
+                  .join(' i ')
+                  .replace(/^./, (c) => c.toUpperCase()) || 'Nic do zrobienia'}
           </button>
         )}
         <button className="btn-ghost" onClick={onDone}>
