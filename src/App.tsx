@@ -21,7 +21,7 @@ function Centered({ children }: { children: ReactNode }) {
           <InstallHint />
           <div className="card p-8 text-center">
             <img src={logo} alt="" className="mx-auto h-16 w-16" />
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight">Studia</h1>
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">Łomiankowe SGH</h1>
             {children}
           </div>
         </div>
@@ -131,7 +131,7 @@ function Panel() {
           ) : (
             <>
               <img src={logo} alt="" className="h-8 w-8" />
-              <span className="text-lg font-semibold tracking-tight">Studia</span>
+              <span className="text-lg font-semibold tracking-tight">LOM.SGH</span>
             </>
           )}
 

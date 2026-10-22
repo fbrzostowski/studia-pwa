@@ -27,7 +27,7 @@ Konsola: https://console.firebase.google.com
 2. Kliknij **Rozpocznij** (Get started).
 3. Na karcie **Sign-in method** wybierz dostawcę **Google**.
 4. Przełącz **Włącz** (Enable) na włączone.
-5. W polu **Publiczna nazwa projektu** zostaw domyślną albo wpisz `Studia`.
+5. W polu **Publiczna nazwa projektu** zostaw domyślną albo wpisz `Łomiankowe SGH`.
 6. W polu **Adres e-mail pomocy** wybierz konto użytkownika z listy.
 7. Kliknij **Zapisz**.
 

@@ -16,8 +16,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Studia',
-        short_name: 'Studia',
+        name: 'Łomiankowe SGH',
+        short_name: 'LOM.SGH',
         description: 'Organizacja zajęć na studiach',
         id: base,
         lang: 'pl',
