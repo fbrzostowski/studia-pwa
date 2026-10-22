@@ -1,0 +1,143 @@
+import { pipeline } from 'node:stream/promises'
+import { auth, drive as driveApi, type drive_v3 } from '@googleapis/drive'
+import { FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore'
+import { getStorage } from 'firebase-admin/storage'
+import { logger } from 'firebase-functions'
+import {
+  FOLDER_MIME,
+  exportsToPdf,
+  fileNameFor,
+  planSync,
+  storagePathFor,
+  titleOf,
+  type DriveFile,
+  type ExistingBook,
+  type Skipped,
+} from './syncPlan.js'
+
+const MAX_DEPTH = 5
+
+export interface SyncSummary {
+  added: number
+  updated: number
+  removed: number
+  unchanged: number
+  skipped: Skipped[]
+}
+
+// Bez pliku z kluczem: funkcja działa jako konto techniczne (serviceAccount w opcjach),
+// a to konto widzi tylko folder, który mu udostępniono.
+function client() {
+  const a = new auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/drive.readonly'] })
+  return driveApi({ version: 'v3', auth: a })
+}
+
+async function listFolder(drive: drive_v3.Drive, folderId: string, path = '', depth = 0): Promise<DriveFile[]> {
+  const out: DriveFile[] = []
+  let pageToken: string | undefined
+  do {
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and trashed = false`,
+      fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime)',
+      pageSize: 1000,
+      pageToken,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    })
+    for (const f of res.data.files ?? []) {
+      if (!f.id || !f.name || !f.mimeType || !f.modifiedTime) continue
+      if (f.mimeType === FOLDER_MIME) {
+        // podfoldery stają się grupami w aplikacji (np. „Mikroekonomia / Ćwiczenia”)
+        if (depth < MAX_DEPTH) out.push(...(await listFolder(drive, f.id, path ? `${path} / ${f.name}` : f.name, depth + 1)))
+        continue
+      }
+      out.push({
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        size: f.size ? Number(f.size) : undefined,
+        modifiedTime: f.modifiedTime,
+        folder: path,
+      })
+    }
+    pageToken = res.data.nextPageToken ?? undefined
+  } while (pageToken)
+  return out
+}
+
+async function copyToStorage(drive: drive_v3.Drive, f: DriveFile) {
+  const pdf = exportsToPdf(f.mimeType)
+  const contentType = pdf ? 'application/pdf' : f.mimeType
+  const src = pdf
+    ? await drive.files.export({ fileId: f.id, mimeType: 'application/pdf' }, { responseType: 'stream' })
+    : await drive.files.get({ fileId: f.id, alt: 'media', supportsAllDrives: true }, { responseType: 'stream' })
+
+  const dest = getStorage().bucket().file(storagePathFor(f))
+  await pipeline(src.data, dest.createWriteStream({ resumable: false, contentType }))
+  const [meta] = await dest.getMetadata()
+  return { contentType, size: Number(meta.size ?? 0) }
+}
+
+const deleteFile = (path: string) =>
+  getStorage()
+    .bucket()
+    .file(path)
+    .delete({ ignoreNotFound: true })
+
+export async function runSync(folderId: string, ctx: { trigger: 'manual' | 'schedule'; by?: string }) {
+  if (!folderId) throw new Error('Brak DRIVE_FOLDER_ID w konfiguracji funkcji.')
+  const db = getFirestore()
+  const drive = client()
+
+  const files = await listFolder(drive, folderId)
+  const snap = await db.collection('textbooks').get()
+  const existing: ExistingBook[] = snap.docs.map((d: QueryDocumentSnapshot) => ({
+    id: d.id,
+    driveModifiedTime: d.get('driveModifiedTime') ?? '',
+    storagePath: d.get('storagePath') ?? '',
+  }))
+  const { upload, remove, skipped, unchanged } = planSync(files, existing)
+  const known = new Map(existing.map((b) => [b.id, b]))
+  const summary: SyncSummary = { added: 0, updated: 0, removed: 0, unchanged, skipped: [...skipped] }
+
+  for (const f of upload) {
+    try {
+      const { contentType, size } = await copyToStorage(drive, f)
+      const old = known.get(f.id)
+      // po zmianie nazwy pliku na Drive stara kopia ma inną ścieżkę
+      if (old?.storagePath && old.storagePath !== storagePathFor(f)) await deleteFile(old.storagePath)
+      await db.doc(`textbooks/${f.id}`).set({
+        title: titleOf(f),
+        fileName: fileNameFor(f),
+        mimeType: contentType,
+        size,
+        folder: f.folder,
+        storagePath: storagePathFor(f),
+        driveFileId: f.id,
+        driveModifiedTime: f.modifiedTime,
+        lastSyncedAt: FieldValue.serverTimestamp(),
+        addedBy: 'drive-sync',
+      })
+      if (old) summary.updated++
+      else summary.added++
+    } catch (e) {
+      logger.error('Nie udało się skopiować pliku', { file: f.name, error: String(e) })
+      summary.skipped.push({ name: f.name, reason: 'błąd kopiowania' })
+    }
+  }
+
+  for (const b of remove) {
+    await deleteFile(b.storagePath)
+    await db.doc(`textbooks/${b.id}`).delete()
+    summary.removed++
+  }
+
+  await db.doc('meta/textbooksSync').set({
+    ...summary,
+    trigger: ctx.trigger,
+    by: ctx.by ?? null,
+    lastRunAt: FieldValue.serverTimestamp(),
+  })
+  logger.info('Synchronizacja podręczników zakończona', summary)
+  return summary
+}

@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getFunctions } from 'firebase/functions'
 import { getStorage } from 'firebase/storage'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
@@ -20,4 +21,6 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 })
 export const storage = getStorage(app)
+// ten sam region co w functions/src/index.ts
+export const functions = getFunctions(app, 'europe-central2')
 export const googleProvider = new GoogleAuthProvider()

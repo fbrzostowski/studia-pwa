@@ -111,5 +111,11 @@ service cloud.firestore {
       allow read: if isApproved();
       allow write: if false; // tylko Cloud Function (Admin SDK)
     }
+
+    // stan synchronizacji podręczników (zapisuje Cloud Function)
+    match /meta/{docId} {
+      allow read: if isApproved();
+      allow write: if false;
+    }
   }
 }

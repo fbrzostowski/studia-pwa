@@ -351,3 +351,14 @@ describe('classes: prowadzący grupy zajęciowej', () => {
     await assertSucceeds(deleteDoc(doc(as('admin'), 'classes/s1_CW_15')))
   })
 })
+
+describe('meta: stan synchronizacji podręczników', () => {
+  it('czytają zatwierdzeni, nikt nie zapisuje z klienta', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'meta/textbooksSync'), { added: 1 })
+    })
+    await assertSucceeds(getDoc(doc(as('alice'), 'meta/textbooksSync')))
+    await assertFails(getDoc(doc(as('pending'), 'meta/textbooksSync')))
+    await assertFails(setDoc(doc(as('admin'), 'meta/textbooksSync'), { added: 2 }))
+  })
+})

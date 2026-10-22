@@ -5,6 +5,7 @@ import { AuthProvider, shownName, useAuth } from './firebase/AuthContext'
 import UsernameForm from './features/profile/UsernameForm'
 import MaterialsPage from './features/materials/MaterialsPage'
 import PlanPage from './features/schedule/PlanPage'
+import TextbooksPage from './features/textbooks/TextbooksPage'
 import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
@@ -89,11 +90,12 @@ function Gate() {
   return <Panel />
 }
 
-type Tab = 'plan' | 'materials'
+type Tab = 'plan' | 'materials' | 'textbooks'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'plan', label: 'Plan', icon: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z' },
-  { id: 'materials', label: 'Materiały', icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z' },
+  { id: 'materials', label: 'Materiały', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
+  { id: 'textbooks', label: 'Podręczniki', icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z' },
 ]
 
 // Panel zalogowanego, zatwierdzonego użytkownika: plan, materiały i ustawienia pod ikoną profilu.
@@ -178,6 +180,8 @@ function Panel() {
               setTab('materials')
             }}
           />
+        ) : tab === 'textbooks' ? (
+          <TextbooksPage />
         ) : (
           <MaterialsPage key={focusSubject ?? 'none'} initialSubjectId={focusSubject} />
         )}
