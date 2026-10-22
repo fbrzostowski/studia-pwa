@@ -54,14 +54,15 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
   }
 
   return (
-    <form onSubmit={submit} className="mt-3 space-y-3 rounded border p-3">
-      <div className="flex gap-2">
+    <form onSubmit={submit} className="card mt-4 space-y-3 p-4">
+      <div className="bg-bg border-line flex gap-1 rounded-xl border p-1">
         {(Object.keys(TYPE_LABEL) as MaterialType[]).map((t) => (
           <button
             key={t}
             type="button"
+            aria-pressed={type === t}
             onClick={() => setType(t)}
-            className={`rounded border px-3 py-1 text-sm ${type === t ? 'bg-indigo-600 text-white' : ''}`}
+            className="text-muted aria-pressed:bg-surface aria-pressed:text-text flex-1 rounded-lg px-2 py-1.5 text-sm font-medium aria-pressed:shadow-sm"
           >
             {TYPE_LABEL[t]}
           </button>
@@ -69,7 +70,7 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
       </div>
       <input
         required
-        className="w-full rounded border p-2"
+        className="input"
         placeholder="Tytuł"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -77,8 +78,8 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
       {type === 'note' && (
         <textarea
           required
-          rows={5}
-          className="w-full rounded border p-2"
+          rows={6}
+          className="input resize-y"
           placeholder="Treść notatki"
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -87,19 +88,26 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
       {type === 'link' && (
         <input
           required
-          className="w-full rounded border p-2"
+          inputMode="url"
+          className="input"
           placeholder="https://…"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
       )}
-      {type === 'slide' && <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {type === 'slide' && (
+        <input
+          type="file"
+          className="text-muted file:bg-accent-soft file:text-accent block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3.5 file:py-2 file:text-sm file:font-medium"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      )}
+      {error && <p className="text-danger text-sm">{error}</p>}
       <div className="flex gap-2">
-        <button disabled={busy} className="rounded bg-indigo-600 px-4 py-2 text-white disabled:opacity-50">
+        <button disabled={busy} className="btn-primary flex-1 sm:flex-none">
           {busy ? 'Zapisuję…' : 'Dodaj'}
         </button>
-        <button type="button" className="rounded border px-4 py-2" onClick={onDone}>
+        <button type="button" className="btn-ghost" onClick={onDone}>
           Anuluj
         </button>
       </div>

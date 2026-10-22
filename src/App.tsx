@@ -1,17 +1,26 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from './firebase/AuthContext'
 import MaterialsPage from './features/materials/MaterialsPage'
 import AccessRequests from './features/admin/AccessRequests'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
 
-function Screen({ children }: { children: React.ReactNode }) {
+const logo = `${import.meta.env.BASE_URL}favicon.svg`
+
+// Ekran poza panelem: logowanie, oczekiwanie na zatwierdzenie, odmowa.
+function Centered({ children }: { children: ReactNode }) {
   return (
     <>
       <OfflineBanner />
-      <main className="mx-auto max-w-2xl p-6">
-        <InstallHint />
-        {children}
+      <main className="flex min-h-dvh flex-col items-center justify-center p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="w-full max-w-sm">
+          <InstallHint />
+          <div className="card p-8 text-center">
+            <img src={logo} alt="" className="mx-auto h-16 w-16" />
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">Studia</h1>
+            {children}
+          </div>
+        </div>
       </main>
     </>
   )
@@ -21,59 +30,98 @@ function Gate() {
   const { user, profile, loading, error, login, logout } = useAuth()
   const [tab, setTab] = useState<'materials' | 'admin'>('materials')
 
-  if (loading) return <Screen>Ładowanie…</Screen>
+  if (loading) {
+    return (
+      <Centered>
+        <p className="text-muted mt-4">Ładowanie…</p>
+      </Centered>
+    )
+  }
 
   if (!user) {
     return (
-      <Screen>
-        <h1 className="text-2xl font-bold">Studia</h1>
-        <button className="mt-4 rounded bg-indigo-600 px-4 py-2 text-white" onClick={login}>
+      <Centered>
+        <p className="text-muted mt-1 text-sm">Wspólne materiały i terminy z zajęć</p>
+        <button className="btn-primary mt-6 w-full" onClick={login}>
           Zaloguj się przez Google
         </button>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      </Screen>
+        {error && <p className="text-danger mt-3 text-sm">{error}</p>}
+      </Centered>
     )
   }
 
   if (!profile || profile.status !== 'approved') {
-    const msg =
-      profile?.status === 'rejected'
-        ? 'Twój wniosek o dostęp został odrzucony. Skontaktuj się z administratorem.'
-        : 'Konto czeka na zatwierdzenie przez administratora.'
+    const rejected = profile?.status === 'rejected'
     return (
-      <Screen>
-        <h1 className="text-2xl font-bold">Studia</h1>
-        <p className="mt-4">{error ?? msg}</p>
-        <button className="mt-4 rounded border px-4 py-2" onClick={logout}>
+      <Centered>
+        <p className="mt-4">
+          {error ??
+            (rejected
+              ? 'Twój wniosek o dostęp został odrzucony. Skontaktuj się z administratorem.'
+              : 'Konto czeka na zatwierdzenie przez administratora.')}
+        </p>
+        <p className="text-muted mt-1 text-sm">{user.email}</p>
+        <button className="btn-secondary mt-6 w-full" onClick={logout}>
           Wyloguj
         </button>
-      </Screen>
+      </Centered>
     )
   }
 
+  const isAdmin = profile.role === 'admin'
+  const initial = (profile.displayName || profile.email || '?').trim().charAt(0).toUpperCase()
+
   return (
-    <Screen>
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Studia</h1>
-        <span className="flex items-center gap-3 text-sm">
-          {profile.displayName}
-          <button className="rounded border px-3 py-1" onClick={logout}>
-            Wyloguj
-          </button>
-        </span>
+    <>
+      <OfflineBanner />
+      <header className="border-line bg-surface/85 sticky top-0 z-10 border-b pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
+          <img src={logo} alt="" className="h-8 w-8" />
+          <span className="hidden text-lg font-semibold tracking-tight sm:inline">Studia</span>
+
+          {isAdmin && (
+            <nav className="ml-2 flex gap-1">
+              {(
+                [
+                  ['materials', 'Materiały'],
+                  ['admin', 'Użytkownicy'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  aria-current={tab === id}
+                  onClick={() => setTab(id)}
+                  className="text-muted aria-[current=true]:bg-accent-soft aria-[current=true]:text-accent rounded-lg px-3 py-1.5 text-sm font-medium"
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            {profile.photoURL ? (
+              <img src={profile.photoURL} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full" />
+            ) : (
+              <span className="bg-accent-soft text-accent flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold">
+                {initial}
+              </span>
+            )}
+            <button className="btn-ghost max-sm:px-2.5" onClick={logout} aria-label="Wyloguj" title="Wyloguj">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              <span className="max-sm:hidden">Wyloguj</span>
+            </button>
+          </div>
+        </div>
       </header>
-      {profile.role === 'admin' && (
-        <nav className="mt-4 flex gap-2">
-          <button className={`rounded border px-3 py-1 ${tab === 'materials' ? 'bg-gray-900 text-white' : ''}`} onClick={() => setTab('materials')}>
-            Materiały
-          </button>
-          <button className={`rounded border px-3 py-1 ${tab === 'admin' ? 'bg-gray-900 text-white' : ''}`} onClick={() => setTab('admin')}>
-            Użytkownicy
-          </button>
-        </nav>
-      )}
-      {tab === 'admin' && profile.role === 'admin' ? <AccessRequests /> : <MaterialsPage />}
-    </Screen>
+
+      <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <InstallHint />
+        {tab === 'admin' && isAdmin ? <AccessRequests /> : <MaterialsPage />}
+      </main>
+    </>
   )
 }
 

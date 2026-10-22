@@ -4,7 +4,7 @@ import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
-import { TYPE_LABEL, type Material, type Subject } from './types'
+import { TYPE_LABEL, TYPE_STYLE, type Material, type Subject } from './types'
 
 export default function MaterialsPage() {
   const { user, profile } = useAuth()
@@ -14,6 +14,7 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([])
   const [newSubject, setNewSubject] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addingSubject, setAddingSubject] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(
@@ -52,6 +53,7 @@ export default function MaterialsPage() {
     try {
       await addDoc(collection(db, 'subjects'), { name, createdBy: user!.uid, createdAt: serverTimestamp() })
       setNewSubject('')
+      setAddingSubject(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -86,89 +88,124 @@ export default function MaterialsPage() {
   const current = subjects.find((s) => s.id === selected)
 
   return (
-    <section className="mt-6">
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+    <div>
+      {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      <h2 className="text-lg font-semibold">Przedmioty</h2>
+      <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Przedmioty</h2>
       <ul className="mt-2 flex flex-wrap gap-2">
         {subjects.map((s) => (
           <li key={s.id}>
             <button
+              className="chip"
+              aria-pressed={selected === s.id}
               onClick={() => {
                 setSelected(s.id)
                 setAdding(false)
               }}
-              className={`rounded border px-3 py-1 ${selected === s.id ? 'bg-indigo-600 text-white' : ''}`}
             >
               {s.name}
             </button>
           </li>
         ))}
-        {subjects.length === 0 && <li className="text-sm text-gray-500">Brak przedmiotów — dodaj pierwszy.</li>}
+        <li>
+          <button
+            className="chip border-dashed text-accent"
+            onClick={() => setAddingSubject((v) => !v)}
+            aria-expanded={addingSubject}
+          >
+            + Przedmiot
+          </button>
+        </li>
       </ul>
-      <form onSubmit={addSubject} className="mt-3 flex gap-2">
-        <input
-          className="min-w-0 flex-1 rounded border p-2"
-          placeholder="Nowy przedmiot"
-          value={newSubject}
-          onChange={(e) => setNewSubject(e.target.value)}
-        />
-        <button className="rounded border px-3 py-1">Dodaj</button>
-      </form>
+
+      {addingSubject && (
+        <form onSubmit={addSubject} className="mt-2 flex gap-2">
+          <input
+            autoFocus
+            className="input min-w-0 flex-1"
+            placeholder="Nazwa przedmiotu"
+            value={newSubject}
+            onChange={(e) => setNewSubject(e.target.value)}
+          />
+          <button className="btn-primary">Dodaj</button>
+        </form>
+      )}
+
+      {!current && (
+        <p className="border-line text-muted mt-6 rounded-2xl border border-dashed p-8 text-center text-sm">
+          {subjects.length === 0 ? 'Brak przedmiotów — dodaj pierwszy.' : 'Wybierz przedmiot, żeby zobaczyć materiały.'}
+        </p>
+      )}
 
       {current && (
-        <div className="mt-8">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">{current.name}</h2>
-            <span className="flex gap-2">
-              {!adding && (
-                <button className="rounded bg-indigo-600 px-3 py-1 text-white" onClick={() => setAdding(true)}>
-                  Dodaj materiał
-                </button>
-              )}
+        <section className="mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold tracking-tight">{current.name}</h2>
+            <div className="flex gap-1">
               {canEdit(current.createdBy) && (
-                <button className="rounded border px-3 py-1" onClick={() => removeSubject(current)}>
+                <button className="btn-danger" onClick={() => removeSubject(current)}>
                   Usuń przedmiot
                 </button>
               )}
-            </span>
+              {!adding && (
+                <button className="btn-primary" onClick={() => setAdding(true)}>
+                  Dodaj materiał
+                </button>
+              )}
+            </div>
           </div>
 
           {adding && <MaterialForm subjectId={current.id} onDone={() => setAdding(false)} />}
 
-          <ul className="mt-3 divide-y rounded border">
-            {materials.length === 0 && <li className="p-3 text-sm text-gray-500">Brak materiałów.</li>}
-            {materials.map((m) => (
-              <li key={m.id} className="p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span>
-                    <span className="mr-2 rounded bg-gray-100 px-2 py-0.5 text-xs">{TYPE_LABEL[m.type]}</span>
-                    {m.type === 'link' && (
-                      <a className="text-indigo-600 underline" href={m.url} target="_blank" rel="noopener noreferrer">
-                        {m.title}
-                      </a>
-                    )}
-                    {m.type === 'slide' && (
-                      <button className="text-indigo-600 underline" onClick={() => openFile(m)}>
-                        {m.title}
+          {materials.length === 0 ? (
+            <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
+              Brak materiałów w tym przedmiocie.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {materials.map((m) => (
+                <li key={m.id} className="card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className={`badge ${TYPE_STYLE[m.type]}`}>{TYPE_LABEL[m.type]}</span>
+                      <h3 className="mt-1.5 font-medium break-words">{m.title}</h3>
+                      <p className="text-muted mt-0.5 text-xs">
+                        {m.ownerName}
+                        {m.createdAt && ` · ${m.createdAt.toDate().toLocaleDateString('pl-PL')}`}
+                      </p>
+                    </div>
+                    {canEdit(m.ownerId) && (
+                      <button className="btn-danger -mt-1 -mr-2 shrink-0" onClick={() => removeMaterial(m)}>
+                        Usuń
                       </button>
                     )}
-                    {m.type === 'note' && <strong>{m.title}</strong>}
-                    <span className="ml-2 text-xs text-gray-500">{m.ownerName}</span>
-                  </span>
-                  {canEdit(m.ownerId) && (
-                    <button className="text-sm text-red-600" onClick={() => removeMaterial(m)}>
-                      Usuń
-                    </button>
+                  </div>
+
+                  {m.type === 'note' && <p className="mt-3 text-sm whitespace-pre-wrap">{m.content}</p>}
+                  {m.type === 'link' && (
+                    <a
+                      className="btn-secondary mt-3"
+                      href={m.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Otwórz link
+                    </a>
                   )}
-                </div>
-                {m.type === 'note' && <p className="mt-2 whitespace-pre-wrap text-sm">{m.content}</p>}
-                {m.type === 'slide' && m.fileName && <p className="mt-1 text-xs text-gray-500">{m.fileName}</p>}
-              </li>
-            ))}
-          </ul>
-        </div>
+                  {m.type === 'slide' && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <button className="btn-secondary" onClick={() => openFile(m)}>
+                        Otwórz plik
+                      </button>
+                      {m.fileName && <span className="text-muted min-w-0 truncate text-xs">{m.fileName}</span>}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
-    </section>
+    </div>
   )
 }

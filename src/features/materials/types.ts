@@ -28,4 +28,10 @@ export const TYPE_LABEL: Record<MaterialType, string> = {
   link: 'Link',
 }
 
+export const TYPE_STYLE: Record<MaterialType, string> = {
+  note: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+  slide: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300',
+  link: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
+}
+
 export const MAX_FILE_BYTES = 25 * 1024 * 1024

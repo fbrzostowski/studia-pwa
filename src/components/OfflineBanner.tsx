@@ -16,7 +16,10 @@ export default function OfflineBanner() {
 
   if (online) return null
   return (
-    <div className="bg-amber-100 px-4 py-1 text-center text-sm text-amber-900" role="status">
+    <div
+      className="bg-amber-100 px-4 py-1.5 text-center text-sm text-amber-900 dark:bg-amber-500/20 dark:text-amber-200"
+      role="status"
+    >
       Brak połączenia — pokazuję ostatnio pobrane dane.
     </div>
   )

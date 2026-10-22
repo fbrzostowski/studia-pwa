@@ -1,1 +1,95 @@
 @import 'tailwindcss';
+
+/* Tokeny kolorów: jasny motyw domyślnie, ciemny wg ustawień systemu. */
+:root {
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --line: #e4e6ee;
+  --text: #14161f;
+  --muted: #646a7d;
+  --accent: #4f46e5;
+  --accent-soft: #eceeff;
+  --danger: #d92d20;
+  --success: #15803d;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1016;
+    --surface: #171a23;
+    --line: #272b38;
+    --text: #eceef5;
+    --muted: #9aa1b5;
+    --accent: #6d70f5;
+    --accent-soft: rgba(109, 112, 245, 0.16);
+    --danger: #f87171;
+    --success: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-bg text-text min-h-dvh antialiased;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+  /* iOS przybliża stronę przy fokusie na polach <16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+}
+
+@utility card {
+  @apply bg-surface border-line rounded-2xl border;
+}
+@utility input {
+  @apply bg-surface border-line text-text placeholder:text-muted w-full rounded-xl border px-3.5 py-2.5 outline-none focus:border-accent;
+}
+@utility btn {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition active:scale-[0.98] disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-white hover:brightness-110;
+}
+@utility btn-secondary {
+  @apply btn border-line bg-surface hover:bg-accent-soft border;
+}
+@utility btn-ghost {
+  @apply btn text-muted hover:bg-accent-soft hover:text-text;
+}
+@utility btn-danger {
+  @apply btn text-danger hover:bg-danger/10;
+}
+@utility chip {
+  @apply border-line bg-surface shrink-0 snap-start rounded-full border px-4 py-1.5 text-sm whitespace-nowrap transition;
+  &[aria-pressed='true'] {
+    @apply bg-accent border-accent text-white;
+  }
+}
+@utility badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}

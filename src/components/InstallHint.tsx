@@ -31,12 +31,12 @@ export default function InstallHint() {
   }
 
   return (
-    <div className="mb-4 flex items-start justify-between gap-3 rounded border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+    <div className="card bg-accent-soft mb-4 flex items-start justify-between gap-3 p-3.5 text-sm">
       <p>
         Zainstaluj aplikację: w Safari dotknij <strong>Udostępnij</strong> (kwadrat ze strzałką), a potem{' '}
         <strong>Dodaj do ekranu głównego</strong>.
       </p>
-      <button className="shrink-0 underline" onClick={dismiss}>
+      <button className="btn-ghost -m-1 shrink-0" onClick={dismiss}>
         Zamknij
       </button>
     </div>
