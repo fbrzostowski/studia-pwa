@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { memberName, useAuth } from '../../firebase/AuthContext'
@@ -10,37 +10,59 @@ import { KIND_LABEL, SUBJECT_KINDS, type SubjectKind } from './types'
 import { useSubjects } from './useSubjects'
 
 /**
- * Nowy przedmiot: najlepiej wybrany z planu USOS (nazwa, rodzaj zajęć i grupy biorą się z pliku),
- * a gdy planu nie ma albo przedmiotu w nim brakuje — wpisany ręcznie. Twórca od razu do niego należy.
+ * Nowy przedmiot. Pole nazwy filtruje listę przedmiotów z planu USOS (wybór uzupełnia nazwę, rodzaj
+ * zajęć, kod USOS i Twoje grupy z pliku); nazwa, której nie ma w planie, dodaje przedmiot ręcznie.
+ * Twórca od razu należy do przedmiotu.
  */
 export default function AddSubjectForm({ initialName = '', onDone }: { initialName?: string; onDone: () => void }) {
   const { user, profile } = useAuth()
   const events = usePlanEvents()
   const { subjects } = useSubjects()
-  const [pick, setPick] = useState<string | null>(null) // klucz z planu, 'manual' albo jeszcze nic
   const [name, setName] = useState(initialName)
+  const [pick, setPick] = useState<string | null>(null) // klucz wybranego przedmiotu z planu
   const [kind, setKind] = useState<SubjectKind>('WYK')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const touched = useRef(false)
 
-  // Wszystkie przedmioty z planu; te, które już są w aplikacji, pokazujemy wyszarzone i nie da się ich wybrać.
+  // Wszystkie przedmioty z planu; te, które już są w aplikacji, są wyszarzone i niewybieralne.
   const all = useMemo(
     () => (events ? toCandidates(events).candidates : []).map((c) => ({ ...c, exists: !!findExisting(c, subjects) })),
     [events, subjects],
   )
-  const options = useMemo(() => all.filter((c) => !c.exists), [all])
+  const selected = all.find((c) => c.key === pick && !c.exists)
 
   // Nazwa z podpowiedzi (np. folder podręczników) pasująca do przedmiotu z planu wybiera go od razu.
-  const preset = initialName ? options.find((o) => norm(o.name) === norm(initialName)) : undefined
-  const manual = pick === 'manual' || (pick === null && !preset && (options.length === 0 || !!initialName))
-  const selected = options.find((o) => o.key === (pick ?? preset?.key))
-  const choosing = !!selected || manual
+  useEffect(() => {
+    if (touched.current || !initialName) return
+    const m = all.find((c) => !c.exists && norm(c.name) === norm(initialName))
+    if (m) {
+      setPick(m.key)
+      setName(m.name)
+    }
+  }, [all, initialName])
 
   useEffect(() => {
     if (selected) setKind(selected.kind)
   }, [selected?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const q = norm(name)
+  // Po wyborze pokazujemy całą listę, bo pole zawiera już nazwę wybranego przedmiotu.
+  const visible = selected || !q ? all : all.filter((c) => norm(c.name).includes(q))
   const finalName = selected ? selected.name : name.trim()
+  const selectable = all.some((c) => !c.exists)
+
+  const onType = (v: string) => {
+    touched.current = true
+    setName(v)
+    if (selected && norm(v) !== norm(selected.name)) setPick(null) // edycja = ręczna nazwa
+  }
+
+  const choose = (key: string, n: string) => {
+    touched.current = true
+    setPick(key)
+    setName(n)
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -75,64 +97,63 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
 
   return (
     <form onSubmit={submit} className="card mt-2 space-y-3 p-3">
-      {events === undefined ? (
-        <p className="text-muted text-sm">Ładowanie planu…</p>
-      ) : all.length > 0 ? (
-        <div>
-          <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">Przedmiot z Twojego planu</p>
-          <ul className="max-h-72 space-y-1.5 overflow-y-auto">
-            {all.map((o) => (
-              <li key={o.key}>
-                <button
-                  type="button"
-                  disabled={o.exists}
-                  aria-pressed={selected?.key === o.key}
-                  onClick={() => setPick(o.key)}
-                  className="border-line aria-pressed:border-accent aria-pressed:bg-accent-soft flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left disabled:opacity-50"
-                >
-                  <span className="min-w-0 break-words">{o.name}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    {o.exists && <span className="text-muted text-xs">już w aplikacji</span>}
-                    <span className="badge bg-accent-soft text-accent">{o.kind}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-            <li>
-              <button
-                type="button"
-                aria-pressed={manual}
-                onClick={() => setPick('manual')}
-                className="border-line text-accent aria-pressed:border-accent aria-pressed:bg-accent-soft w-full rounded-xl border border-dashed px-3 py-2 text-left"
-              >
-                Inny przedmiot (wpisz ręcznie)
-              </button>
-            </li>
-          </ul>
-          {options.length === 0 && (
-            <p className="text-muted mt-1.5 text-xs">
-              Wszystkie przedmioty z Twojego planu są już w aplikacji. Możesz dodać inny, wpisując nazwę.
-            </p>
-          )}
-        </div>
-      ) : (
+      <input
+        autoFocus
+        required
+        className="input"
+        placeholder={all.length > 0 ? 'Nazwa przedmiotu — wpisz, aby wyszukać w planie' : 'Nazwa przedmiotu'}
+        value={name}
+        onChange={(e) => onType(e.target.value)}
+      />
+
+      {events === undefined && <p className="text-muted text-sm">Ładowanie planu…</p>}
+
+      {events === null && (
         <p className="text-muted text-sm">
           Zaimportuj plan z USOS (zakładka Plan), żeby wybierać przedmioty z listy. Na razie wpisz nazwę ręcznie.
         </p>
       )}
 
-      {manual && (
-        <input
-          autoFocus
-          required
-          className="input"
-          placeholder="Nazwa przedmiotu"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      {all.length > 0 && (
+        <div>
+          <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">
+            Z Twojego planu{q && !selected ? ` (${visible.length} z ${all.length})` : ''}
+          </p>
+          {visible.length > 0 ? (
+            <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+              {visible.map((o) => (
+                <li key={o.key}>
+                  <button
+                    type="button"
+                    disabled={o.exists}
+                    aria-pressed={selected?.key === o.key}
+                    onClick={() => choose(o.key, o.name)}
+                    className="border-line aria-pressed:border-accent aria-pressed:bg-accent-soft flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left disabled:opacity-50"
+                  >
+                    <span className="min-w-0 break-words">{o.name}</span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {o.exists && <span className="text-muted text-xs">już w aplikacji</span>}
+                      <span className="badge bg-accent-soft text-accent">{o.kind}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {!selectable && !q && (
+            <p className="text-muted mt-1.5 text-xs">Wszystkie przedmioty z planu są już w aplikacji.</p>
+          )}
+          {!selected && finalName && (
+            <p className="text-muted mt-1.5 text-xs">
+              {visible.length > 0
+                ? `Wybierz przedmiot z listy albo zostaw wpisaną nazwę, aby dodać „${finalName}” jako nowy (bez grup z planu).`
+                : `Nie ma go w Twoim planie — zostanie dodany jako nowy przedmiot „${finalName}” (bez grup z planu).`}
+            </p>
+          )}
+        </div>
       )}
 
-      {choosing && (
+      {finalName && (
         <div>
           <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">Rodzaj zajęć</p>
           <div className="flex flex-wrap gap-2">
@@ -158,7 +179,7 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
 
       {error && <p className="text-danger text-sm">{error}</p>}
       <div className="flex gap-2">
-        <button disabled={busy || !choosing || !finalName} className="btn-primary">
+        <button disabled={busy || !finalName} className="btn-primary">
           {busy ? 'Zapisuję…' : 'Dodaj przedmiot'}
         </button>
         <button type="button" className="btn-ghost" onClick={onDone}>
