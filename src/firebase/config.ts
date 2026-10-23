@@ -20,7 +20,9 @@ export const auth = getAuth(app)
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 })
-export const storage = getStorage(app)
+// Pliki leżą w osobnym buckecie w us-central1: tylko tam obowiązuje bezpłatny limit Cloud Storage dla Firebase.
+export const STORAGE_BUCKET = 'studia-pwa-podreczniki'
+export const storage = getStorage(app, `gs://${STORAGE_BUCKET}`)
 // ten sam region co w functions/src/index.ts
 export const functions = getFunctions(app, 'europe-west1')
 export const googleProvider = new GoogleAuthProvider()

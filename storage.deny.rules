@@ -1,0 +1,10 @@
+// Domyślny bucket w Europie nie jest używany (pliki są w studia-pwa-podreczniki w us-central1,
+// gdzie obowiązuje bezpłatny limit), więc zamykamy go całkowicie.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

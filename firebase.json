@@ -2,9 +2,16 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    {
+      "target": "files",
+      "rules": "storage.rules"
+    },
+    {
+      "target": "closed",
+      "rules": "storage.deny.rules"
+    }
+  ],
   "emulators": {
     "firestore": {
       "port": 8080

@@ -4,6 +4,7 @@ import { FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-a
 import { getStorage } from 'firebase-admin/storage'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { logger } from 'firebase-functions'
+import { STORAGE_BUCKET } from './config.js'
 import { driveErrorInfo, escapeDriveQuery, isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
 import {
   FOLDER_MIME,
@@ -22,6 +23,8 @@ import {
 } from './syncPlan.js'
 
 const MAX_DEPTH = 5
+
+const bucket = () => getStorage().bucket(STORAGE_BUCKET)
 
 export interface SyncSummary {
   added: number
@@ -89,7 +92,7 @@ async function copyToStorage(drive: drive_v3.Drive, f: DriveFile) {
     ? await drive.files.export({ fileId: f.id, mimeType: 'application/pdf' }, { responseType: 'stream' })
     : await drive.files.get({ fileId: f.id, alt: 'media', supportsAllDrives: true }, { responseType: 'stream' })
 
-  const dest = getStorage().bucket().file(storagePathFor(f))
+  const dest = bucket().file(storagePathFor(f))
   await pipeline(src.data, dest.createWriteStream({ resumable: false, contentType }))
   const [meta] = await dest.getMetadata()
   return { contentType, size: Number(meta.size ?? 0) }
@@ -249,7 +252,7 @@ export async function addTextbookFromUpload(
     throw new Error('Nieprawidłowa nazwa podfolderu (1–100 znaków, bez ukośników).')
   }
 
-  const tmp = getStorage().bucket().file(input.uploadPath)
+  const tmp = bucket().file(input.uploadPath)
   try {
     const [exists] = await tmp.exists()
     if (!exists) throw new Error('Nie znaleziono wgranego pliku — spróbuj ponownie.')
@@ -301,7 +304,7 @@ export async function addTextbookFromUpload(
     if (!id || !created.data.modifiedTime) throw new Error('Drive nie zwrócił danych wgranego pliku.')
 
     const finalPath = storagePathFor({ id, name, mimeType: mime })
-    await tmp.copy(getStorage().bucket().file(finalPath))
+    await tmp.copy(bucket().file(finalPath))
 
     const title = typeof input.title === 'string' && input.title.trim() ? input.title.trim().slice(0, 150) : titleOf({ name, mimeType: mime })
     await getFirestore().doc(`textbooks/${id}`).set({
@@ -343,7 +346,7 @@ export async function deleteTextbook(id: unknown, uid: string, isAdmin: boolean)
     if (code !== 404) throw e // 404 = pliku już nie ma na Drive, sprzątamy resztę
   }
   const path = snap.get('storagePath')
-  if (typeof path === 'string' && path) await getStorage().bucket().file(path).delete({ ignoreNotFound: true }).catch(() => {})
+  if (typeof path === 'string' && path) await bucket().file(path).delete({ ignoreNotFound: true }).catch(() => {})
   await ref.delete()
   logger.info('Usunięto podręcznik', { id })
 }

@@ -1,1 +1,27 @@
-{ "projects": { "default": "studia-pwa" } }
+{
+  "projects": {
+    "default": "studia-pwa"
+  },
+  "targets": {
+    "studia-pwa": {
+      "storage": {
+        "files": [
+          "studia-pwa-podreczniki"
+        ],
+        "closed": [
+          "studia-pwa.firebasestorage.app"
+        ]
+      }
+    },
+    "studia-pwa-test": {
+      "storage": {
+        "files": [
+          "studia-pwa-test.appspot.com"
+        ],
+        "closed": [
+          "studia-pwa-test-closed"
+        ]
+      }
+    }
+  }
+}
