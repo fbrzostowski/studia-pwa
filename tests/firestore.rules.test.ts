@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { deleteDoc, deleteField, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 
 let env: RulesTestEnvironment
 
@@ -452,5 +452,60 @@ describe('exams: terminy mid-term i final exam', () => {
     await assertFails(setDoc(doc(as('alice'), 'exams/own'), { ...edited, createdBy: 'alice' }))
     await assertFails(deleteDoc(doc(as('alice'), 'exams/own')))
     await assertSucceeds(deleteDoc(doc(as('admin'), 'exams/own')))
+  })
+})
+
+describe('todoLists: prywatne listy do nauki', () => {
+  const list = (over: Record<string, unknown> = {}) => ({
+    ownerId: 'bob',
+    name: 'Nauka: Mathematics — Mid-term',
+    subjectId: 's1',
+    items: [{ id: 'a', title: 'Granice ciągów', done: false, materialId: 'm1' }],
+    createdAt: serverTimestamp(),
+    ...over,
+  })
+
+  it('właściciel tworzy, czyta, zmienia (odznacza punkty) i usuwa własną listę', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'todoLists/t1'), list()))
+    await assertSucceeds(getDoc(doc(as('bob'), 'todoLists/t1')))
+    await assertSucceeds(
+      updateDoc(doc(as('bob'), 'todoLists/t1'), { items: [{ id: 'a', title: 'Granice ciągów', done: true }], updatedAt: serverTimestamp() }),
+    )
+    await assertSucceeds(deleteDoc(doc(as('bob'), 'todoLists/t1')))
+  })
+  it('cudzej listy nie czyta, nie zmienia i nie usuwa nikt, także admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'todoLists/t2'), { ownerId: 'alice', name: 'Moja', items: [] })
+    })
+    await assertFails(getDoc(doc(as('bob'), 'todoLists/t2')))
+    await assertFails(getDoc(doc(as('admin'), 'todoLists/t2')))
+    await assertFails(updateDoc(doc(as('bob'), 'todoLists/t2'), { name: 'Hack' }))
+    await assertFails(deleteDoc(doc(as('admin'), 'todoLists/t2')))
+  })
+  it('zapytanie po własnym ownerId działa, bez filtra jest odrzucone', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'todoLists/b1'), { ownerId: 'bob', name: 'B', items: [] })
+      await setDoc(doc(ctx.firestore(), 'todoLists/a1'), { ownerId: 'alice', name: 'A', items: [] })
+    })
+    await assertSucceeds(getDocs(query(collection(as('bob'), 'todoLists'), where('ownerId', '==', 'bob'))))
+    await assertFails(getDocs(collection(as('bob'), 'todoLists')))
+    await assertFails(getDocs(query(collection(as('bob'), 'todoLists'), where('ownerId', '==', 'alice'))))
+  })
+  it('odrzuca zły kształt: puste lub za długie imię, items nie-lista, za dużo punktów, obce pole', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ name: '' })))
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ name: 'x'.repeat(101) })))
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ items: 'x' })))
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ items: Array.from({ length: 301 }, (_, i) => ({ id: String(i), title: 't', done: false })) })))
+    await assertSucceeds(setDoc(doc(as('bob'), 'todoLists/ok300'), list({ items: Array.from({ length: 300 }, (_, i) => ({ id: String(i), title: 't', done: false })) })))
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ extra: 1 })))
+  })
+  it('nie utworzysz listy na cudze ownerId ani nie przepiszesz właściciela; pending i anonim nie mają list', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'todoLists/x'), list({ ownerId: 'alice' })))
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'todoLists/own'), { ownerId: 'bob', name: 'B', items: [] })
+    })
+    await assertFails(updateDoc(doc(as('bob'), 'todoLists/own'), { ownerId: 'alice' }))
+    await assertFails(setDoc(doc(as('pending'), 'todoLists/x'), list({ ownerId: 'pending' })))
+    await assertFails(setDoc(doc(anon(), 'todoLists/x'), list()))
   })
 })

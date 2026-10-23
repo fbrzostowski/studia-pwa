@@ -14,7 +14,7 @@ export default function ExamForm({
 }: {
   sections: Pick<ExamSection, 'key' | 'name' | 'subjects'>[]
   exam?: Exam // edycja istniejącego terminu
-  preset?: { sectionKey?: string; type?: ExamType }
+  preset?: { sectionKey?: string; type?: ExamType; date?: string }
   onDone: () => void
 }) {
   const { user, profile } = useAuth()
@@ -24,7 +24,7 @@ export default function ExamForm({
     sections[0]
   const [sectionKey, setSectionKey] = useState(initialSection?.key ?? '')
   const [type, setType] = useState<ExamType>(exam?.type ?? preset?.type ?? 'MID')
-  const [date, setDate] = useState(exam?.date ?? '')
+  const [date, setDate] = useState(exam?.date ?? preset?.date ?? '')
   const [time, setTime] = useState(exam?.time ?? '')
   const [room, setRoom] = useState(exam?.room ?? '')
   const [note, setNote] = useState(exam?.note ?? '')

@@ -6,6 +6,7 @@ import { useExams } from '../exams/useExams'
 import { useAuth } from '../../firebase/AuthContext'
 import { norm } from '../../lib/text'
 import { useLessonNotes } from './useLessonNotes'
+import MonthGrid, { dayTitle } from '../../components/MonthGrid'
 import LessonCard, { FORM_DOT, lessonKey, noteLessonKey } from './LessonCard'
 import type { Material } from './types'
 import { findSubjectForEvent } from '../schedule/match'
@@ -13,10 +14,7 @@ import type { IcsEvent } from '../schedule/parseIcs'
 import { usePlanEvents } from '../schedule/usePlan'
 import { addDays, fromDateKey, monthWeeks, startOfWeek, toDateKey, weekKeys } from '../schedule/weeks'
 
-const DAYS = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd']
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-const dayTitle = (k: string) =>
-  cap(fromDateKey(k).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }))
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {
   return (
@@ -181,45 +179,29 @@ export default function CalendarView({ onOpenSubject }: { onOpenSubject: (id: st
 
       {mode === 'month' ? (
         <>
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-            {DAYS.map((d) => (
-              <div key={d} className="text-muted py-1 text-xs font-medium">
-                {d}
-              </div>
-            ))}
-            {weeks.flat().map((k) => {
+          <MonthGrid
+            anchor={anchor}
+            selected={selected}
+            todayKey={todayKey}
+            onSelect={setSelected}
+            cell={(k) => {
               const lessons = byDay.get(k) ?? []
               const dayExams = examsByDay.get(k) ?? []
-              const inMonth = fromDateKey(k).getMonth() === anchor.getMonth()
               const n = dayNoteCount(k)
-              return (
-                <button
-                  key={k}
-                  onClick={() => setSelected(k)}
-                  aria-pressed={selected === k}
-                  aria-label={`${dayTitle(k)}: ${lessons.length} zajęć${n ? `, ${n} notatek` : ''}${dayExams.length ? `, ${dayExams.length} zaliczeń` : ''}`}
-                  className={`border-line relative flex min-h-14 flex-col items-center gap-1 rounded-xl border px-0.5 py-1.5 text-sm transition aria-pressed:border-accent aria-pressed:bg-accent-soft ${inMonth ? 'bg-surface' : 'bg-transparent opacity-45'}`}
-                >
-                  <span
-                    className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 ${k === todayKey ? 'bg-accent font-semibold text-white' : ''}`}
-                  >
-                    {+k.slice(8)}
-                  </span>
-                  <span className="flex flex-wrap justify-center gap-0.5">
+              return {
+                label: `${lessons.length} zajęć${n ? `, ${n} notatek` : ''}${dayExams.length ? `, ${dayExams.length} zaliczeń` : ''}`,
+                badge: n,
+                markers: (
+                  <>
                     {lessons.slice(0, 4).map((e, i) => (
                       <span key={i} className={`h-1.5 w-1.5 rounded-full ${FORM_DOT[e.form] ?? 'bg-gray-400'}`} />
                     ))}
                     {dayExams.length > 0 && <span className="h-1.5 w-3 rounded-full bg-rose-500" title="Zaliczenie" />}
-                  </span>
-                  {n > 0 && (
-                    <span className="bg-accent absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold text-white">
-                      {n}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+                  </>
+                ),
+              }
+            }}
+          />
 
           <section className="mt-5" aria-live="polite">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">

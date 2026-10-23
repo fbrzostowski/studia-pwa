@@ -1,86 +1,33 @@
 import { useMemo, useState } from 'react'
-import { deleteDoc, doc } from 'firebase/firestore'
-import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useMemberships } from '../groups/hooks'
 import { KIND_LABEL } from '../materials/types'
 import { useSubjects } from '../materials/useSubjects'
-import { fromDateKey, toDateKey } from '../schedule/weeks'
+import { toDateKey } from '../schedule/weeks'
+import ExamCalendar from './ExamCalendar'
 import ExamForm from './ExamForm'
-import { countdown, daysUntil, groupExams, splitExams, type ExamSection } from './logic'
+import ExamRow from './ExamRow'
+import { groupExams, splitExams, type ExamSection } from './logic'
+import TodoLists from './TodoLists'
 import { EXAM_LABEL, EXAM_STYLE, EXAM_TYPES, type Exam, type ExamType } from './types'
 import { useExams } from './useExams'
 
-const fmtDate = (k: string) =>
-  fromDateKey(k).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+type View = 'calendar' | 'list' | 'todo'
+type FormState = { exam?: Exam; sectionKey?: string; type?: ExamType; date?: string } | null
 
-function ExamRow({
-  e,
-  subjectName,
-  todayKey,
-  onEdit,
-}: {
-  e: Exam
-  subjectName?: string
-  todayKey: string
-  onEdit: (e: Exam) => void
-}) {
-  const { user, profile } = useAuth()
-  const [error, setError] = useState<string | null>(null)
-  const canEdit = profile?.role === 'admin' || e.createdBy === user!.uid
-  const n = daysUntil(e.date, todayKey)
+const VIEWS: [View, string][] = [
+  ['calendar', 'Kalendarz'],
+  ['list', 'Lista'],
+  ['todo', 'Do nauki'],
+]
 
-  const remove = async () => {
-    if (!confirm(`Usunąć termin: ${EXAM_LABEL[e.type]}, ${fmtDate(e.date)}?`)) return
-    await deleteDoc(doc(db, 'exams', e.id)).catch((err) => setError(err.message))
-  }
-
-  return (
-    <div className="border-line rounded-xl border p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {subjectName && <p className="mb-1 font-medium break-words">{subjectName}</p>}
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className={`badge ${EXAM_STYLE[e.type]}`}>{EXAM_LABEL[e.type]}</span>
-            <span className="text-sm font-medium">
-              {fmtDate(e.date)}
-              {e.time && `, ${e.time}`}
-            </span>
-            <span
-              className={`badge ${n >= 0 && n <= 7 ? 'bg-accent text-white' : 'bg-accent-soft text-accent'}`}
-              title={n >= 0 ? 'Do terminu' : 'Minęło'}
-            >
-              {countdown(n)}
-            </span>
-          </p>
-          {e.room && <p className="text-muted mt-1 text-xs">Sala {e.room}</p>}
-          {e.note && <p className="mt-1.5 text-sm whitespace-pre-wrap">{e.note}</p>}
-          {e.createdByName && <p className="text-muted mt-1 text-xs">Dodał(a): {e.createdByName}</p>}
-        </div>
-        {canEdit && (
-          <div className="-mt-1 -mr-2 flex shrink-0 flex-col items-end">
-            <button className="btn-ghost" onClick={() => onEdit(e)}>
-              Edytuj
-            </button>
-            <button className="btn-danger" onClick={remove}>
-              Usuń
-            </button>
-          </div>
-        )}
-      </div>
-      {error && <p className="text-danger mt-2 text-sm">{error}</p>}
-    </div>
-  )
-}
-
-type FormState = { exam?: Exam; sectionKey?: string; type?: ExamType } | null
-
-/** Zaliczenia: wspólne terminy mid-term i final exam per przedmiot, z odliczaniem do najbliższych. */
+/** Zaliczenia: terminy mid-term i final exam (kalendarz i lista) oraz prywatne listy do nauki. */
 export default function ExamsPage() {
   const { user } = useAuth()
   const { subjects } = useSubjects()
   const { exams, error } = useExams()
   const memberships = useMemberships()
+  const [view, setView] = useState<View>('calendar')
   const [form, setForm] = useState<FormState>(null)
 
   const todayKey = toDateKey(new Date())
@@ -89,12 +36,16 @@ export default function ExamsPage() {
     [memberships, user],
   )
   const sections = useMemo(() => groupExams(subjects, exams, mine), [subjects, exams, mine])
-  // formularz pozwala dodać termin do każdego przedmiotu, nie tylko do moich
+  // formularze pozwalają wybrać każdy przedmiot, nie tylko moje
   const allSections = useMemo(() => groupExams(subjects, exams, new Set(subjects.map((s) => s.id))), [subjects, exams])
   const nameOf = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects])
-  const { upcoming, past } = useMemo(() => splitExams(exams.filter((e) => nameOf.has(e.subjectId)), todayKey), [exams, nameOf, todayKey])
+  const known = useMemo(() => exams.filter((e) => nameOf.has(e.subjectId)), [exams, nameOf])
+  const { upcoming, past } = useMemo(() => splitExams(known, todayKey), [known, todayKey])
 
-  const open = (state: NonNullable<FormState>) => setForm(state)
+  const open = (state: NonNullable<FormState>) => {
+    if (view === 'todo') setView('calendar')
+    setForm(state)
+  }
 
   return (
     <div>
@@ -102,9 +53,24 @@ export default function ExamsPage() {
 
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-semibold tracking-tight">Zaliczenia</h2>
-        <button className="btn-primary" onClick={() => (form ? setForm(null) : open({}))} disabled={subjects.length === 0}>
-          + Termin
-        </button>
+        {view !== 'todo' && (
+          <button className="btn-primary" onClick={() => (form ? setForm(null) : open({}))} disabled={subjects.length === 0}>
+            + Termin
+          </button>
+        )}
+      </div>
+
+      <div className="bg-bg border-line mt-3 flex gap-1 rounded-xl border p-1" role="group" aria-label="Widok zaliczeń">
+        {VIEWS.map(([id, label]) => (
+          <button
+            key={id}
+            aria-pressed={view === id}
+            onClick={() => setView(id)}
+            className="text-muted aria-pressed:bg-surface aria-pressed:text-text flex-1 rounded-lg px-3 py-1.5 text-sm font-medium aria-pressed:shadow-sm"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {subjects.length === 0 && (
@@ -113,17 +79,35 @@ export default function ExamsPage() {
         </p>
       )}
 
-      {form && (
+      {form && view !== 'todo' && (
         <ExamForm
-          key={form.exam?.id ?? `${form.sectionKey}-${form.type}`}
+          key={form.exam?.id ?? `${form.sectionKey}-${form.type}-${form.date}`}
           sections={allSections}
           exam={form.exam}
-          preset={{ sectionKey: form.sectionKey, type: form.type }}
+          preset={{ sectionKey: form.sectionKey, type: form.type, date: form.date }}
           onDone={() => setForm(null)}
         />
       )}
 
-      {subjects.length > 0 && (
+      {subjects.length > 0 && view === 'calendar' && (
+        <div className="mt-4">
+          <ExamCalendar
+            exams={known}
+            nameOf={nameOf}
+            todayKey={todayKey}
+            onEdit={(x) => open({ exam: x })}
+            onAdd={(date) => open({ date })}
+          />
+        </div>
+      )}
+
+      {subjects.length > 0 && view === 'todo' && (
+        <div className="mt-4">
+          <TodoLists sections={allSections} />
+        </div>
+      )}
+
+      {subjects.length > 0 && view === 'list' && (
         <>
           <section className="mt-6">
             <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Najbliższe</h3>
@@ -134,7 +118,7 @@ export default function ExamsPage() {
             ) : (
               <ul className="space-y-2">
                 {upcoming.slice(0, 5).map((e) => (
-                  <li key={e.id}>
+                  <li key={e.id} className="bg-surface rounded-xl">
                     <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
                   </li>
                 ))}
@@ -146,7 +130,13 @@ export default function ExamsPage() {
             <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Przedmioty</h3>
             <ul className="space-y-3">
               {sections.map((sec) => (
-                <SubjectCard key={sec.key} sec={{ ...sec, exams: sec.exams.filter((e) => e.date >= todayKey) }} todayKey={todayKey} onAdd={(type) => open({ sectionKey: sec.key, type })} onEdit={(x) => open({ exam: x })} />
+                <SubjectCard
+                  key={sec.key}
+                  sec={{ ...sec, exams: sec.exams.filter((e) => e.date >= todayKey) }}
+                  todayKey={todayKey}
+                  onAdd={(type) => open({ sectionKey: sec.key, type })}
+                  onEdit={(x) => open({ exam: x })}
+                />
               ))}
               {sections.length === 0 && (
                 <li className="text-muted text-sm">Nie należysz jeszcze do żadnego przedmiotu — zaimportuj plan w zakładce Plan.</li>
@@ -161,7 +151,7 @@ export default function ExamsPage() {
               </summary>
               <ul className="mt-2 space-y-2">
                 {past.map((e) => (
-                  <li key={e.id}>
+                  <li key={e.id} className="bg-surface rounded-xl">
                     <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
                   </li>
                 ))}

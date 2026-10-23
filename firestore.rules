@@ -33,6 +33,14 @@ service cloud.firestore {
         && (!('createdByName' in d) || (d.createdByName is string && d.createdByName.size() <= 60))
         && exists(/databases/$(database)/documents/subjects/$(d.subjectId));
     }
+    // prywatna lista do nauki: nazwa, opcjonalny przedmiot i lista punktów z odznaczeniami
+    function validTodo(d) {
+      return d.keys().hasOnly(['ownerId', 'name', 'subjectId', 'items', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'name', 'items'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 100
+        && (!('subjectId' in d) || d.subjectId is string)
+        && d.items is list && d.items.size() <= 300;
+    }
     function validKind(k) { return k in ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']; }
 
     match /users/{uid} {
@@ -71,6 +79,16 @@ service cloud.firestore {
       allow create, update: if isApproved() && request.auth.uid == uid
                             && request.resource.data.events is list
                             && request.resource.data.events.size() <= 1000;
+    }
+
+    // listy do nauki są prywatne: widzi i zmienia je tylko właściciel (także admin nie ma wglądu)
+    match /todoLists/{id} {
+      allow read, delete: if isApproved() && resource.data.ownerId == request.auth.uid;
+      allow create: if isApproved() && request.resource.data.ownerId == request.auth.uid
+                    && validTodo(request.resource.data);
+      allow update: if isApproved() && resource.data.ownerId == request.auth.uid
+                    && request.resource.data.ownerId == resource.data.ownerId
+                    && validTodo(request.resource.data);
     }
 
     match /subjects/{docId} {
