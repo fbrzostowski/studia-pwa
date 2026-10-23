@@ -7,7 +7,8 @@ export interface BookLike {
 
 /** Porównywanie nazw bez wielkości liter, polskich znaków i nadmiarowych spacji. */
 export const norm = (s: string) =>
-  s.toLocaleLowerCase('pl').normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim()
+  // ł nie rozkłada się w Unicode na „l” + znak łączący, więc zamieniamy je osobno
+  s.toLocaleLowerCase('pl').replace(/ł/g, 'l').normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim()
 
 const parts = (folder: string) => folder.split('/').map((p) => p.trim()).filter(Boolean)
 export const topFolder = (folder: string) => parts(folder)[0] ?? ''
