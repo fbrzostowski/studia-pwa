@@ -13,6 +13,22 @@ export function addDays(d: Date, n: number) {
   return r
 }
 
+/** Poniedziałek tygodnia, w którym jest data d. */
+export function startOfWeek(d: Date) {
+  return addDays(d, -((d.getDay() + 6) % 7))
+}
+
+/** Klucze dat (YYYY-MM-DD) siedmiu dni tygodnia od poniedziałku. */
+export const weekKeys = (monday: Date) => Array.from({ length: 7 }, (_, i) => toDateKey(addDays(monday, i)))
+
+/** Tygodnie (po 7 kluczy dat, od poniedziałku) pokrywające cały miesiąc; month 0–11. */
+export function monthWeeks(year: number, month: number) {
+  const last = new Date(year, month + 1, 0)
+  const weeks: string[][] = []
+  for (let m = startOfWeek(new Date(year, month, 1)); m <= last; m = addDays(m, 7)) weeks.push(weekKeys(m))
+  return weeks
+}
+
 /**
  * Dni z zajęciami od dziś (YYYY-MM-DD, rosnąco). Dzisiejszy dzień tylko wtedy, gdy któreś
  * zajęcia jeszcze się nie skończyły — po ostatnich zajęciach lista zaczyna się od jutra.

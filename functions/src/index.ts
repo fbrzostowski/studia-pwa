@@ -4,7 +4,7 @@ import { defineString } from 'firebase-functions/params'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { runSync } from './driveSync.js'
+import { ensureSubjectFolder, runSync } from './driveSync.js'
 
 initializeApp()
 
@@ -36,6 +36,18 @@ export const syncTextbooks = onCall(async (req) => {
     return await runSync(DRIVE_FOLDER_ID.value(), { trigger: 'manual', by: req.auth.uid })
   } catch (e) {
     throw new HttpsError('internal', e instanceof Error ? e.message : String(e))
+  }
+})
+
+/** Folder przedmiotu na Drive — dla każdego zatwierdzonego użytkownika (zakłada też brakujący folder). */
+export const createSubjectFolder = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Zaloguj się.')
+  const me = await getFirestore().doc(`users/${req.auth.uid}`).get()
+  if (me.get('status') !== 'approved') throw new HttpsError('permission-denied', 'Konto nie jest zatwierdzone.')
+  try {
+    return await ensureSubjectFolder(DRIVE_FOLDER_ID.value(), req.data?.name, req.auth.uid)
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : String(e))
   }
 })
 

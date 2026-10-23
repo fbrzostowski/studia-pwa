@@ -2,7 +2,8 @@
 
 Zakładka **Podręczniki** pokazuje pliki z jednego folderu na Twoim Google Drive. Kopiuje je tam Cloud Function `syncTextbooks` (przycisk „Synchronizuj z Drive” u admina) oraz `syncTextbooksDaily` (codziennie o 4:00). Funkcja działa jako konto techniczne `drive-sync`, które widzi **tylko** udostępniony mu folder. Użytkownicy aplikacji nie mają dostępu do Twojego Drive — dostają kopie ze Storage, chronione regułami (tylko zatwierdzeni).
 
-- Podfoldery w folderze stają się grupami w zakładce (np. `Mikroekonomia`, `Mikroekonomia / Prezentacje`).
+- Folder główny to `lom.sgh.podreczniki`; w nim leży jeden folder na przedmiot (nazwa = nazwa przedmiotu w aplikacji), a w nich ewentualne podfoldery (np. `Mikroekonomia / Prezentacje`).
+- Folder przedmiotu powstaje sam: w zakładce Podręczniki wybierz **+ Przedmiot** (lista przedmiotów bez folderu), a funkcja `createSubjectFolder` założy go w folderze głównym.
 - Dokumenty, Prezentacje i Arkusze Google są eksportowane do PDF. Inne pliki Google (Formularze, skróty) są pomijane.
 - Limit pliku: 100 MB. Pliki usunięte z folderu znikają z aplikacji przy kolejnej synchronizacji.
 
@@ -46,8 +47,10 @@ Pozostałe API (Cloud Functions, Cloud Build, Artifact Registry, Cloud Run, Clou
 ## 5. Folder na Drive
 
 1. Na swoim Google Drive utwórz folder, np. `LOM.SGH – podręczniki`, i wrzuć do niego pliki (podfoldery wg przedmiotów).
-2. Prawy przycisk na folderze → **Udostępnij** → wpisz `drive-sync@studia-pwa.iam.gserviceaccount.com` → rola **Przeglądający** → odznacz „Powiadom” → **Udostępnij**.
+2. Prawy przycisk na folderze → **Udostępnij** → wpisz `drive-sync@studia-pwa.iam.gserviceaccount.com` → rola **Edytujący** → odznacz „Powiadom” → **Udostępnij**.
+   Rola Edytujący jest potrzebna tylko do zakładania folderów przedmiotów; konto widzi i zmienia wyłącznie ten jeden folder.
    Nie zmieniaj ogólnego dostępu folderu — ma zostać „Ograniczony”.
+   Jeśli folder ma inną nazwę, zmień ją na `lom.sgh.podreczniki` (ID w adresie się nie zmienia, więc konfiguracja zostaje).
 3. Otwórz folder i skopiuj jego ID z adresu: `https://drive.google.com/drive/folders/`**`TO_JEST_ID`**.
 
 ## 6. Deploy (terminal, w katalogu `studia-pwa`)
@@ -66,6 +69,7 @@ W aplikacji (jako admin): **Podręczniki → Synchronizuj z Drive**. Pod przycis
 
 Najczęstsze problemy:
 
+- **„Konto drive-sync nie może zakładać folderów”** — na folderze głównym konto ma rolę Przeglądający; zmień ją na Edytujący.
 - **„File not found” / pusta lista** — folder nie jest udostępniony kontu `drive-sync…` albo `DRIVE_FOLDER_ID` jest błędne.
 - **Błąd uprawnień do Firestore/Storage w logach** — brakuje roli z kroku 4.3. Logi: https://console.cloud.google.com/logs/query?project=studia-pwa
 - **„Synchronizację uruchamia tylko administrator”** — zalogowane konto nie ma `role: admin` i `status: approved`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, fromDateKey, toDateKey, toLocalIso, upcomingDayKeys } from '../src/features/schedule/weeks'
+import { addDays, fromDateKey, monthWeeks, startOfWeek, toDateKey, toLocalIso, upcomingDayKeys, weekKeys } from '../src/features/schedule/weeks'
 
 describe('daty', () => {
   it('addDays przechodzi przez zmianę czasu (25.10.2026) i granicę roku', () => {
@@ -39,5 +39,41 @@ describe('upcomingDayKeys', () => {
   })
   it('po końcu semestru lista jest pusta', () => {
     expect(upcomingDayKeys(plan, '2026-10-26T12:00')).toEqual([])
+  })
+})
+
+describe('tygodnie i miesiące', () => {
+  it('startOfWeek zwraca poniedziałek dla każdego dnia tygodnia, także niedzieli', () => {
+    for (const k of ['2026-10-19', '2026-10-21', '2026-10-25']) {
+      expect(toDateKey(startOfWeek(fromDateKey(k)))).toBe('2026-10-19')
+    }
+    expect(toDateKey(startOfWeek(fromDateKey('2027-01-01')))).toBe('2026-12-28')
+  })
+  it('tydzień ze zmianą czasu (25.10.2026) ma 7 kolejnych dni', () => {
+    expect(weekKeys(fromDateKey('2026-10-19'))).toEqual([
+      '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25',
+    ])
+  })
+  it('październik 2026: 5 tygodni od 28.09 do 1.11, z DST w środku', () => {
+    const w = monthWeeks(2026, 9)
+    expect(w).toHaveLength(5)
+    expect(w[0][0]).toBe('2026-09-28')
+    expect(w[4][6]).toBe('2026-11-01')
+    expect(w.flat()).toHaveLength(35)
+    expect(new Set(w.flat()).size).toBe(35)
+  })
+  it('luty 2027 (zaczyna się w poniedziałek, kończy w niedzielę) to dokładnie 4 tygodnie', () => {
+    const w = monthWeeks(2027, 1)
+    expect(w).toHaveLength(4)
+    expect(w[0][0]).toBe('2027-02-01')
+    expect(w[3][6]).toBe('2027-02-28')
+  })
+  it('miesiąc przechodzi przez granicę roku (grudzień 2026 kończy się w styczniu)', () => {
+    const w = monthWeeks(2026, 11)
+    expect(w[0][0]).toBe('2026-11-30')
+    expect(w[w.length - 1][6]).toBe('2027-01-03')
+  })
+  it('sierpień 2026 potrzebuje 6 tygodni', () => {
+    expect(monthWeeks(2026, 7)).toHaveLength(6)
   })
 })

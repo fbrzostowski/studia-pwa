@@ -6,6 +6,7 @@ import { db, functions, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
+import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { groupTextbooks, norm, subFolder } from './group'
 
@@ -66,12 +67,24 @@ export default function TextbooksPage() {
     [],
   )
   useEffect(
+    () =>
+      onSnapshot(
+        collection(db, 'textbookFolders'),
+        (snap) => setFolders(snap.docs.map((d) => ({ id: d.id, name: d.get('name') as string }))),
+        () => setFolders([]),
+      ),
+    [],
+  )
+  useEffect(
     () => onSnapshot(doc(db, 'meta', 'textbooksSync'), (s) => setSync(s.exists() ? (s.data() as SyncState) : null), () => {}),
     [],
   )
 
   const { subjects } = useSubjects()
-  const [adding, setAdding] = useState<{ name: string } | null>(null)
+  // folder: nowy przedmiot z folderem na Drive; subject: sam przedmiot dla folderu, który już jest na Drive
+  const [adding, setAdding] = useState<{ mode: 'folder' | 'subject'; name: string } | null>(null)
+  const [folders, setFolders] = useState<FolderRef[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Dział na przedmioty: pierwszy człon folderu na Drive = nazwa przedmiotu w aplikacji.
   const grouped = useMemo(() => {
@@ -106,6 +119,7 @@ export default function TextbooksPage() {
   }
 
   const total = books?.length ?? 0
+  const folderKeys = useMemo(() => new Set(folders.map((f) => norm(f.name))), [folders])
   const { sections, general, unmatched, searching } = grouped
   const withBooks = sections.filter((sec) => sec.books.length > 0)
   const withoutBooks = sections.filter((sec) => sec.books.length === 0)
@@ -138,7 +152,11 @@ export default function TextbooksPage() {
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
         <div className="flex items-center gap-1">
-          <button className="btn-secondary" onClick={() => setAdding(adding ? null : { name: '' })} aria-expanded={!!adding}>
+          <button
+            className="btn-secondary"
+            onClick={() => setAdding(adding ? null : { mode: 'folder', name: '' })}
+            aria-expanded={!!adding}
+          >
             + Przedmiot
           </button>
           {isAdmin && (
@@ -166,7 +184,35 @@ export default function TextbooksPage() {
         </div>
       </div>
 
-      {adding && <AddSubjectForm key={adding.name} initialName={adding.name} onDone={() => setAdding(null)} />}
+      {adding?.mode === 'folder' && (
+        <AddTextbookSubject
+          key="folder"
+          initialName={adding.name}
+          folders={folders}
+          onDone={(created) => {
+            setAdding(null)
+            if (created) {
+              setNotice(
+                created.created
+                  ? `Utworzono folder „${created.name}” na Google Drive. Wrzuć do niego podręczniki i kliknij ikonę synchronizacji.`
+                  : `Folder „${created.name}” już istnieje na Google Drive.`,
+              )
+            }
+          }}
+        />
+      )}
+      {adding?.mode === 'subject' && (
+        <AddSubjectForm key={adding.name} initialName={adding.name} onDone={() => setAdding(null)} />
+      )}
+
+      {notice && (
+        <p className="bg-accent-soft text-accent mt-2 flex items-start justify-between gap-3 rounded-xl p-3 text-sm">
+          <span>{notice}</span>
+          <button className="shrink-0 underline" onClick={() => setNotice(null)}>
+            Zamknij
+          </button>
+        </p>
+      )}
 
       {isAdmin && sync?.lastRunAt && (
         <p className="text-muted mt-2 text-xs">
@@ -231,7 +277,7 @@ export default function TextbooksPage() {
                   </span>
                   <button
                     className="text-accent text-xs font-medium"
-                    onClick={() => setAdding({ name: u.folder })}
+                    onClick={() => setAdding({ mode: 'subject', name: u.folder })}
                   >
                     Utwórz przedmiot „{u.folder}”
                   </button>
@@ -248,11 +294,22 @@ export default function TextbooksPage() {
             )}
           </div>
 
-          {!searching && total > 0 && withoutBooks.length > 0 && (
-            <p className="text-muted mt-6 text-xs">
-              Przedmioty bez podręczników: {withoutBooks.map((sec) => sec.name).join(', ')}.
-              {isAdmin && ' Aby dodać, wrzuć pliki do folderu o tej samej nazwie na Drive.'}
-            </p>
+          {!searching && withoutBooks.length > 0 && (
+            <div className="text-muted mt-6 space-y-1 text-xs">
+              {withoutBooks.some((sec) => folderKeys.has(sec.key)) && (
+                <p>
+                  Foldery czekają na pliki:{' '}
+                  {withoutBooks.filter((sec) => folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}.
+                </p>
+              )}
+              {withoutBooks.some((sec) => !folderKeys.has(sec.key)) && (
+                <p>
+                  Bez folderu na Drive:{' '}
+                  {withoutBooks.filter((sec) => !folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}. Dodasz go
+                  przyciskiem „+ Przedmiot”.
+                </p>
+              )}
+            </div>
           )}
         </>
       )}

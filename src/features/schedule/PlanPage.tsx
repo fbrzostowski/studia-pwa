@@ -4,8 +4,8 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
 import { useClassDocs, useMemberships } from '../groups/hooks'
-import type { Subject } from '../materials/types'
 import ImportPlan from './ImportPlan'
+import { findSubjectForEvent as findSubject } from './match'
 import { classKey, normGroup, type IcsEvent } from './parseIcs'
 import { addDays, fromDateKey, toDateKey, toLocalIso, upcomingDayKeys } from './weeks'
 
@@ -28,14 +28,6 @@ const dayTitle = (key: string) =>
   cap(fromDateKey(key).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }))
 
 // Przedmiot w aplikacji pasuje do zajęć po kodzie USOS i formie (WYK+CW obejmuje WYK i CW).
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
-const findSubject = (subjects: Subject[], e: IcsEvent) => {
-  const fits = subjects.filter((s) => s.kind.split('+').includes(e.form))
-  return (
-    (e.code ? fits.find((s) => s.usosCode === e.code) : undefined) ?? fits.find((s) => sameName(s.name, e.name))
-  )
-}
-
 function Chevron() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

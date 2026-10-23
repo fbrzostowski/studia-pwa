@@ -72,3 +72,32 @@ export function planSync(drive: DriveFile[], existing: ExistingBook[]) {
 
   return { upload, remove, skipped, unchanged: eligible.length - upload.length }
 }
+
+// ---------- foldery przedmiotów ----------
+
+export interface DriveFolder {
+  id: string
+  name: string
+}
+
+/** Nazwy porównujemy bez wielkości liter, polskich znaków i nadmiarowych spacji (jak w aplikacji). */
+export const norm = (s: string) =>
+  s.toLocaleLowerCase('pl').replace(/ł/g, 'l').normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim()
+
+/** Poprawna nazwa folderu przedmiotu albo null. */
+export function validFolderName(name: unknown): string | null {
+  if (typeof name !== 'string') return null
+  const n = name.trim().replace(/\s+/g, ' ')
+  if (n.length < 1 || n.length > 100) return null
+  if (/[/\\]/.test(n) || n === '.' || n === '..') return null
+  return n
+}
+
+export const findFolderByName = (folders: DriveFolder[], name: string) =>
+  folders.find((f) => norm(f.name) === norm(name))
+
+/** Rejestr folderów w Firestore ma odpowiadać aktualnym folderom najwyższego poziomu na Drive. */
+export function planFolders(current: DriveFolder[], existingIds: string[]) {
+  const live = new Set(current.map((f) => f.id))
+  return { upsert: current, remove: existingIds.filter((id) => !live.has(id)) }
+}

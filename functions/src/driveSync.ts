@@ -7,10 +7,14 @@ import {
   FOLDER_MIME,
   exportsToPdf,
   fileNameFor,
+  findFolderByName,
+  planFolders,
   planSync,
   storagePathFor,
   titleOf,
+  validFolderName,
   type DriveFile,
+  type DriveFolder,
   type ExistingBook,
   type Skipped,
 } from './syncPlan.js'
@@ -26,13 +30,20 @@ export interface SyncSummary {
 }
 
 // Bez pliku z kluczem: funkcja działa jako konto techniczne (serviceAccount w opcjach),
-// a to konto widzi tylko folder, który mu udostępniono.
+// a to konto widzi i zmienia tylko folder, który mu udostępniono (rola Edytujący jest potrzebna
+// wyłącznie do zakładania folderów przedmiotów; synchronizacja tylko czyta).
 function client() {
-  const a = new auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/drive.readonly'] })
+  const a = new auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/drive'] })
   return driveApi({ version: 'v3', auth: a })
 }
 
-async function listFolder(drive: drive_v3.Drive, folderId: string, path = '', depth = 0): Promise<DriveFile[]> {
+async function listFolder(
+  drive: drive_v3.Drive,
+  folderId: string,
+  path = '',
+  depth = 0,
+  topFolders: DriveFolder[] = [],
+): Promise<DriveFile[]> {
   const out: DriveFile[] = []
   let pageToken: string | undefined
   do {
@@ -47,8 +58,12 @@ async function listFolder(drive: drive_v3.Drive, folderId: string, path = '', de
     for (const f of res.data.files ?? []) {
       if (!f.id || !f.name || !f.mimeType || !f.modifiedTime) continue
       if (f.mimeType === FOLDER_MIME) {
+        // foldery najwyższego poziomu to przedmioty (także puste — trafiają do rejestru folderów)
+        if (depth === 0) topFolders.push({ id: f.id, name: f.name })
         // podfoldery stają się grupami w aplikacji (np. „Mikroekonomia / Ćwiczenia”)
-        if (depth < MAX_DEPTH) out.push(...(await listFolder(drive, f.id, path ? `${path} / ${f.name}` : f.name, depth + 1)))
+        if (depth < MAX_DEPTH) {
+          out.push(...(await listFolder(drive, f.id, path ? `${path} / ${f.name}` : f.name, depth + 1, topFolders)))
+        }
         continue
       }
       out.push({
@@ -89,7 +104,8 @@ export async function runSync(folderId: string, ctx: { trigger: 'manual' | 'sche
   const db = getFirestore()
   const drive = client()
 
-  const files = await listFolder(drive, folderId)
+  const topFolders: DriveFolder[] = []
+  const files = await listFolder(drive, folderId, '', 0, topFolders)
   const snap = await db.collection('textbooks').get()
   const existing: ExistingBook[] = snap.docs.map((d: QueryDocumentSnapshot) => ({
     id: d.id,
@@ -132,6 +148,14 @@ export async function runSync(folderId: string, ctx: { trigger: 'manual' | 'sche
     summary.removed++
   }
 
+  // Rejestr folderów: aplikacja po nim wie, które przedmioty mają już swój folder (także pusty).
+  const regSnap = await db.collection('textbookFolders').get()
+  const reg = planFolders(topFolders, regSnap.docs.map((d: QueryDocumentSnapshot) => d.id))
+  for (const f of reg.upsert) {
+    await db.doc(`textbookFolders/${f.id}`).set({ name: f.name, lastSeenAt: FieldValue.serverTimestamp() }, { merge: true })
+  }
+  for (const id of reg.remove) await db.doc(`textbookFolders/${id}`).delete()
+
   await db.doc('meta/textbooksSync').set({
     ...summary,
     trigger: ctx.trigger,
@@ -140,4 +164,62 @@ export async function runSync(folderId: string, ctx: { trigger: 'manual' | 'sche
   })
   logger.info('Synchronizacja podręczników zakończona', summary)
   return summary
+}
+
+/**
+ * Zakłada folder przedmiotu w folderze głównym (lub zwraca istniejący o tej samej nazwie).
+ * Wymaga, żeby konto drive-sync miało na folderze głównym rolę Edytujący.
+ */
+export async function ensureSubjectFolder(rootId: string, rawName: unknown, by: string) {
+  if (!rootId) throw new Error('Brak DRIVE_FOLDER_ID w konfiguracji funkcji.')
+  const name = validFolderName(rawName)
+  if (!name) throw new Error('Nieprawidłowa nazwa przedmiotu (1–100 znaków, bez ukośników).')
+
+  const drive = client()
+  const existing: DriveFolder[] = []
+  let pageToken: string | undefined
+  do {
+    const res = await drive.files.list({
+      q: `'${rootId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+      fields: 'nextPageToken, files(id, name)',
+      pageSize: 1000,
+      pageToken,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    })
+    for (const f of res.data.files ?? []) if (f.id && f.name) existing.push({ id: f.id, name: f.name })
+    pageToken = res.data.nextPageToken ?? undefined
+  } while (pageToken)
+
+  let folder = findFolderByName(existing, name)
+  let created = false
+  if (!folder) {
+    try {
+      const res = await drive.files.create({
+        requestBody: { name, mimeType: FOLDER_MIME, parents: [rootId] },
+        fields: 'id, name',
+        supportsAllDrives: true,
+      })
+      if (!res.data.id) throw new Error('Drive nie zwrócił identyfikatora folderu.')
+      folder = { id: res.data.id, name: res.data.name ?? name }
+      created = true
+    } catch (e) {
+      const code = (e as { code?: number }).code
+      if (code === 403 || code === 404) {
+        throw new Error(
+          'Konto drive-sync nie może zakładać folderów. Na folderze głównym w Google Drive zmień mu rolę na „Edytujący”.',
+        )
+      }
+      throw e
+    }
+  }
+
+  await getFirestore()
+    .doc(`textbookFolders/${folder.id}`)
+    .set(
+      { name: folder.name, lastSeenAt: FieldValue.serverTimestamp(), ...(created ? { createdBy: by } : {}) },
+      { merge: true },
+    )
+  logger.info('Folder przedmiotu', { name: folder.name, created })
+  return { id: folder.id, name: folder.name, created }
 }

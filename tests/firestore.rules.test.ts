@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
+import { deleteDoc, deleteField, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
 
 let env: RulesTestEnvironment
 
@@ -360,5 +360,42 @@ describe('meta: stan synchronizacji podręczników', () => {
     await assertSucceeds(getDoc(doc(as('alice'), 'meta/textbooksSync')))
     await assertFails(getDoc(doc(as('pending'), 'meta/textbooksSync')))
     await assertFails(setDoc(doc(as('admin'), 'meta/textbooksSync'), { added: 2 }))
+  })
+})
+
+describe('textbookFolders: rejestr folderów przedmiotów', () => {
+  it('czytają zatwierdzeni, nikt nie zapisuje z klienta', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'textbookFolders/f1'), { name: 'Mathematics' })
+    })
+    await assertSucceeds(getDoc(doc(as('alice'), 'textbookFolders/f1')))
+    await assertFails(getDoc(doc(as('pending'), 'textbookFolders/f1')))
+    await assertFails(getDoc(doc(anon(), 'textbookFolders/f1')))
+    await assertFails(setDoc(doc(as('admin'), 'textbookFolders/f2'), { name: 'X' }))
+    await assertFails(deleteDoc(doc(as('admin'), 'textbookFolders/f1')))
+  })
+})
+
+describe('materials: podpięcie do lekcji', () => {
+  const base = { title: 'Notatka', subjectId: 's1', type: 'note', ownerId: 'bob' }
+  const lesson = { lessonDate: '2026-10-22', lessonForm: 'WYK', lessonGroup: '1' }
+
+  it('materiał z poprawnymi danymi lekcji da się dodać', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'materials/l1'), { ...base, ...lesson }))
+  })
+  it('zła data, nieznana forma, brak formy lub grupy albo za długa grupa są odrzucane', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'materials/l2'), { ...base, ...lesson, lessonDate: '22.10.2026' }))
+    await assertFails(setDoc(doc(as('bob'), 'materials/l3'), { ...base, ...lesson, lessonForm: 'XXX' }))
+    await assertFails(setDoc(doc(as('bob'), 'materials/l4'), { ...base, lessonDate: '2026-10-22' }))
+    await assertFails(setDoc(doc(as('bob'), 'materials/l5'), { ...base, ...lesson, lessonGroup: 'x'.repeat(21) }))
+  })
+  it('właściciel podpina istniejący materiał do lekcji i odpina go, obcy nie może', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'materials/m9'), { ...base })
+    })
+    await assertSucceeds(updateDoc(doc(as('bob'), 'materials/m9'), lesson))
+    await assertFails(updateDoc(doc(as('alice'), 'materials/m9'), { lessonDate: '2026-10-23' }))
+    await assertFails(updateDoc(doc(as('bob'), 'materials/m9'), { lessonDate: 'jutro' }))
+    await assertSucceeds(updateDoc(doc(as('bob'), 'materials/m9'), { lessonDate: deleteField(), lessonForm: deleteField(), lessonGroup: deleteField() }))
   })
 })

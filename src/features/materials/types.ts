@@ -33,6 +33,10 @@ export interface Material {
   fileName?: string
   ownerId: string
   ownerName: string
+  // podpięcie do konkretnej lekcji z planu (opcjonalne)
+  lessonDate?: string // YYYY-MM-DD
+  lessonForm?: string
+  lessonGroup?: string
   createdAt?: Timestamp
 }
 

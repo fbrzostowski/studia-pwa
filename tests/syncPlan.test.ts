@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FOLDER_MIME, MAX_BYTES, fileNameFor, planSync, storagePathFor, titleOf, type DriveFile } from '../functions/src/syncPlan'
+import { FOLDER_MIME, MAX_BYTES, fileNameFor, findFolderByName, norm, planFolders, planSync, storagePathFor, titleOf, validFolderName, type DriveFile } from '../functions/src/syncPlan'
 
 const f = (id: string, over: Partial<DriveFile> = {}): DriveFile => ({
   id, name: `${id}.pdf`, mimeType: 'application/pdf', size: 1000, modifiedTime: '2026-10-01T10:00:00Z', folder: '', ...over,
@@ -57,5 +57,27 @@ describe('nazwy', () => {
   it('tytuł bez rozszerzenia, ale nazwy plików Google bez zmian', () => {
     expect(titleOf({ name: 'Mikroekonomia - Varian.pdf', mimeType: 'application/pdf' })).toBe('Mikroekonomia - Varian')
     expect(titleOf({ name: 'Wykład 3. Popyt', mimeType: 'application/vnd.google-apps.presentation' })).toBe('Wykład 3. Popyt')
+  })
+})
+
+describe('foldery przedmiotów', () => {
+  it('validFolderName przycina i odrzuca niepoprawne nazwy', () => {
+    expect(validFolderName('  Mikroekonomia   I ')).toBe('Mikroekonomia I')
+    for (const bad of ['', '   ', 'a/b', 'a\\b', '..', '.', 'x'.repeat(101), 5, null, undefined]) {
+      expect(validFolderName(bad)).toBeNull()
+    }
+    expect(validFolderName('x'.repeat(100))).toHaveLength(100)
+  })
+  it('findFolderByName ignoruje wielkość liter, polskie znaki i spacje', () => {
+    const folders = [{ id: '1', name: 'Mikroekonomia' }, { id: '2', name: 'Łódź i okolice' }]
+    expect(findFolderByName(folders, ' MIKROEKONOMIA ')?.id).toBe('1')
+    expect(findFolderByName(folders, 'lodz  i okolice')?.id).toBe('2')
+    expect(findFolderByName(folders, 'Mathematics')).toBeUndefined()
+    expect(norm('Łódź  Ćwiczenia')).toBe('lodz cwiczenia')
+  })
+  it('planFolders usuwa z rejestru foldery, których nie ma już na Drive', () => {
+    const r = planFolders([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], ['b', 'gone', 'a'])
+    expect(r.upsert.map((f) => f.id)).toEqual(['a', 'b'])
+    expect(r.remove).toEqual(['gone'])
   })
 })
