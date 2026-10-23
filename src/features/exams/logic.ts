@@ -1,6 +1,8 @@
 import { norm } from '../../lib/text'
 import { fromDateKey } from '../schedule/weeks'
 import type { Subject } from '../materials/types'
+import { findSubjectForEvent } from '../schedule/match'
+import type { IcsEvent } from '../schedule/parseIcs'
 import type { Exam } from './types'
 
 /** Ile dni od dziś do daty (ujemne = minęło). Daty to lokalne klucze YYYY-MM-DD, więc zmiana czasu nie przeszkadza. */
@@ -57,4 +59,44 @@ export function groupExams(subjects: Subject[], exams: Exam[], mySubjectIds: Set
     .filter((sec) => sec.mine || sec.exams.length > 0)
     .map((sec) => ({ ...sec, exams: sec.exams.sort(byDate) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+}
+
+export interface SlotSuggestion {
+  time: string // HH:mm początku lekcji
+  end: string
+  room?: string
+  form: string
+  name: string
+}
+
+/**
+ * Lekcje przedmiotu z mojego planu w danym dniu: z nich podpowiadamy godzinę i salę zaliczenia.
+ * Lekcje dopasowujemy do przedmiotu jak w widoku Plan (kod USOS, a w razie braku nazwa i forma).
+ */
+export function suggestSlots(
+  events: IcsEvent[],
+  subjects: Subject[],
+  sectionSubjectIds: Set<string>,
+  date: string,
+): SlotSuggestion[] {
+  if (!date) return []
+  const seen = new Set<string>()
+  const out: SlotSuggestion[] = []
+  for (const e of events) {
+    if (e.start.slice(0, 10) !== date) continue
+    const subject = findSubjectForEvent(subjects, e)
+    if (!subject || !sectionSubjectIds.has(subject.id)) continue
+    const slot: SlotSuggestion = {
+      time: e.start.slice(11),
+      end: e.end.slice(11),
+      room: e.room?.trim() || undefined,
+      form: e.form,
+      name: e.name,
+    }
+    const key = `${slot.time}|${slot.room ?? ''}|${slot.form}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(slot)
+  }
+  return out.sort((a, b) => a.time.localeCompare(b.time) || a.form.localeCompare(b.form))
 }

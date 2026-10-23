@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { memberName, useAuth } from '../../firebase/AuthContext'
-import type { ExamSection } from './logic'
+import { usePlanEvents } from '../schedule/usePlan'
+import { suggestSlots, type ExamSection } from './logic'
 import { EXAM_LABEL, EXAM_TYPES, type Exam, type ExamType } from './types'
 
 /** Dodawanie i edycja terminu mid-term / final exam. */
@@ -32,6 +33,58 @@ export default function ExamForm({
   const [error, setError] = useState<string | null>(null)
 
   const section = sections.find((s) => s.key === sectionKey)
+
+  // --- godzina i sala z planu: wpisujemy je jako wartości domyślne, ale użytkownik musi je zatwierdzić ---
+  const events = usePlanEvents()
+  const allSubjects = useMemo(() => sections.flatMap((s) => s.subjects), [sections])
+  const auto = useRef({ time: '', room: '' }) // ostatnio podpowiedziane wartości (odróżniamy je od wpisanych ręcznie)
+  const sectionChosen = useRef(!!exam || !!preset?.sectionKey)
+  const initialPick = useRef(false)
+  const [pickIdx, setPickIdx] = useState(0)
+  const [confirmed, setConfirmed] = useState(false)
+
+  const suggestions = useMemo(
+    () =>
+      exam || !events || !section
+        ? []
+        : suggestSlots(events, allSubjects, new Set(section.subjects.map((s) => s.id)), date),
+    [events, allSubjects, section, date, exam],
+  )
+
+  // Termin dodawany z kalendarza (jest data, brak przedmiotu): wybierz przedmiot, który ma tego dnia lekcję.
+  useEffect(() => {
+    if (exam || sectionChosen.current || initialPick.current || !events || !date) return
+    initialPick.current = true
+    const hit = sections.find((sec) =>
+      suggestSlots(events, allSubjects, new Set(sec.subjects.map((s) => s.id)), date).length > 0,
+    )
+    if (hit) setSectionKey(hit.key)
+  }, [events, date, sections, allSubjects, exam])
+
+  const applySlot = (slot?: { time: string; room?: string }) => {
+    const old = auto.current
+    const next = { time: slot?.time ?? '', room: slot?.room ?? '' }
+    // nadpisujemy tylko pola puste albo wypełnione wcześniejszą podpowiedzią — wpisanych ręcznie nie ruszamy
+    setTime((cur) => (cur === '' || cur === old.time ? next.time : cur))
+    setRoom((cur) => (cur === '' || cur === old.room ? next.room : cur))
+    auto.current = next
+  }
+
+  useEffect(() => {
+    setPickIdx(0)
+    setConfirmed(false)
+    applySlot(suggestions[0])
+  }, [suggestions]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chosen = suggestions[pickIdx]
+  const choose = (i: number) => {
+    setPickIdx(i)
+    setTime(suggestions[i].time)
+    setRoom(suggestions[i].room ?? '')
+    auto.current = { time: suggestions[i].time, room: suggestions[i].room ?? '' }
+    setConfirmed(false)
+  }
+  const needsConfirm = suggestions.length > 0
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -69,7 +122,10 @@ export default function ExamForm({
         required
         className="input"
         value={sectionKey}
-        onChange={(e) => setSectionKey(e.target.value)}
+        onChange={(e) => {
+          sectionChosen.current = true
+          setSectionKey(e.target.value)
+        }}
         aria-label="Przedmiot"
       >
         {sections.map((s) => (
@@ -111,6 +167,46 @@ export default function ExamForm({
         value={room}
         onChange={(e) => setRoom(e.target.value)}
       />
+      {chosen && (
+        <div className="border-accent bg-accent-soft rounded-xl border p-3 text-sm" role="group" aria-label="Podpowiedź z planu">
+          <p className="font-medium">Godzina i sala zostały wpisane z Twojego planu</p>
+          <p className="mt-1">
+            {chosen.name} ({chosen.form}), {chosen.time}–{chosen.end}
+            {chosen.room ? `, sala ${chosen.room}` : ', bez sali'}
+          </p>
+          <p className="text-muted mt-1 text-xs">
+            To tylko domyślne wartości — zaliczenie bywa o innej godzinie lub w innej sali niż zajęcia. Sprawdź je i w
+            razie potrzeby popraw powyżej.
+          </p>
+          {suggestions.length > 1 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-muted text-xs">Inna lekcja tego dnia:</span>
+              {suggestions.map((sg, idx) => (
+                <button
+                  key={`${sg.time}-${sg.form}-${sg.room ?? ''}`}
+                  type="button"
+                  aria-pressed={idx === pickIdx}
+                  onClick={() => choose(idx)}
+                  className="chip"
+                >
+                  {sg.time} {sg.form}
+                  {sg.room ? ` · ${sg.room}` : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          <label className="mt-3 flex cursor-pointer items-start gap-2.5 font-medium">
+            <input
+              type="checkbox"
+              required
+              className="accent-accent mt-0.5 h-5 w-5 shrink-0"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+            />
+            <span>Sprawdziłem godzinę i salę — są poprawne</span>
+          </label>
+        </div>
+      )}
       <textarea
         className="input resize-y"
         rows={2}
@@ -122,7 +218,7 @@ export default function ExamForm({
 
       {error && <p className="text-danger text-sm">{error}</p>}
       <div className="flex gap-2">
-        <button disabled={busy || !date || !section} className="btn-primary">
+        <button disabled={busy || !date || !section || (needsConfirm && !confirmed)} className="btn-primary">
           {busy ? 'Zapisuję…' : exam ? 'Zapisz zmiany' : 'Dodaj termin'}
         </button>
         <button type="button" className="btn-ghost" onClick={onDone}>
