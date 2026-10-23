@@ -4,7 +4,8 @@ import { db } from '../../firebase/config'
 import { memberName, useAuth } from '../../firebase/AuthContext'
 import { KIND_LABEL, SUBJECT_KINDS, type Subject, type SubjectKind } from '../materials/types'
 import { plural } from '../../lib/plural'
-import { parseIcs, summarizeClasses, toCandidates, type Candidate, type IcsEvent, type Skipped } from './parseIcs'
+import { findExisting } from './match'
+import { eventsForCandidate, parseIcs, summarizeClasses, toCandidates, type Candidate, type IcsEvent, type Skipped } from './parseIcs'
 
 const MAX_BYTES = 2 * 1024 * 1024
 
@@ -12,15 +13,7 @@ interface Row extends Candidate {
   include: boolean
 }
 
-const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })
-
-// Przedmiot już istnieje, jeśli ma ten sam kod USOS i rodzaj albo tę samą nazwę i rodzaj.
-function findExisting(row: Pick<Row, 'code' | 'name' | 'kind'>, subjects: Subject[]) {
-  return subjects.find(
-    (s) => s.kind === row.kind && ((row.code && s.usosCode === row.code) || norm(s.name) === norm(row.name)),
-  )
-}
 
 export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; onDone: () => void }) {
   const { user, profile } = useAuth()
@@ -87,9 +80,7 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
         )
         batch.set(doc(db, 'plans', user!.uid), { events: compact, fileName, importedAt: serverTimestamp() })
         for (const { subjectId, row } of joins) {
-          const rowEvents = events.filter(
-            (e) => (row.code ? e.code === row.code : e.name === row.name) && row.forms.includes(e.form),
-          )
+          const rowEvents = eventsForCandidate(events, row)
           batch.set(doc(db, 'memberships', `${subjectId}_${user!.uid}`), {
             uid: user!.uid,
             subjectId,

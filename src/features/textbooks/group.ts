@@ -5,10 +5,8 @@ export interface BookLike {
   folder: string // ścieżka podfolderu na Drive, np. „Mikroekonomia / Prezentacje”; '' = folder główny
 }
 
-/** Porównywanie nazw bez wielkości liter, polskich znaków i nadmiarowych spacji. */
-export const norm = (s: string) =>
-  // ł nie rozkłada się w Unicode na „l” + znak łączący, więc zamieniamy je osobno
-  s.toLocaleLowerCase('pl').replace(/ł/g, 'l').normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim()
+export { norm } from '../../lib/text'
+import { norm } from '../../lib/text'
 
 const parts = (folder: string) => folder.split('/').map((p) => p.trim()).filter(Boolean)
 export const topFolder = (folder: string) => parts(folder)[0] ?? ''

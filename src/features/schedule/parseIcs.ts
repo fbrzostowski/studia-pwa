@@ -188,3 +188,7 @@ export function summarizeClasses(events: IcsEvent[]): ClassInfo[] {
     }))
     .sort((a, b) => a.form.localeCompare(b.form) || a.group.localeCompare(b.group, 'pl', { numeric: true }))
 }
+
+/** Terminy z planu, które składają się na danego kandydata (ta sama sygnatura/nazwa i jego formy). */
+export const eventsForCandidate = (events: IcsEvent[], c: Pick<Candidate, 'code' | 'name' | 'forms'>) =>
+  events.filter((e) => (c.code ? e.code === c.code : e.name === c.name) && c.forms.includes(e.form))

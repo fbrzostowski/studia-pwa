@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { classKey, normGroup, parseIcs, summarizeClasses, toCandidates } from '../src/features/schedule/parseIcs'
+import { classKey, eventsForCandidate, normGroup, parseIcs, summarizeClasses, toCandidates } from '../src/features/schedule/parseIcs'
 
 const text = readFileSync('tests/fixtures/plan.ics', 'utf8')
 const { candidates, skipped } = toCandidates(parseIcs(text))
@@ -89,5 +89,18 @@ describe('klucze grup', () => {
     expect(classKey('abc', 'CW', '15')).toBe('abc_CW_15')
     expect(classKey('abc', 'CW', '15')).not.toBe(classKey('abc', 'CW', '16'))
     expect(classKey('abc', 'WYK', '15')).not.toBe(classKey('abc', 'CW', '15'))
+  })
+})
+
+describe('eventsForCandidate', () => {
+  it('zwraca terminy kandydata: wszystkie formy WYK+CW albo tylko wybraną po rozbiciu', () => {
+    const events = parseIcs(text)
+    const { candidates } = toCandidates(events)
+    const algebra = candidates.find((c) => c.name === 'Algebra')!
+    expect(eventsForCandidate(events, algebra)).toHaveLength(3)
+    const fizyka = candidates.filter((c) => c.name === 'Fizyka')
+    expect(fizyka.map((c) => eventsForCandidate(events, c).map((e) => e.form))).toEqual(
+      expect.arrayContaining([['WYK'], ['LAB']]),
+    )
   })
 })

@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore,storage --project studia-pwa-test 'vitest run'",
-    "test:unit": "vitest run tests/parseIcs.test.ts tests/weeks.test.ts tests/plural.test.ts tests/syncPlan.test.ts"
+    "test:unit": "vitest run tests/parseIcs.test.ts tests/weeks.test.ts tests/plural.test.ts tests/syncPlan.test.ts tests/textbooksGroup.test.ts tests/match.test.ts"
   },
   "dependencies": {
     "firebase": "^13.1.0",
