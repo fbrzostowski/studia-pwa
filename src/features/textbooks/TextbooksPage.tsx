@@ -148,6 +148,8 @@ export default function TextbooksPage() {
   const total = books?.length ?? 0
   const folderKeys = useMemo(() => new Set(folders.map((f) => norm(f.name))), [folders])
   const { sections, general, unmatched, searching } = grouped
+  // do dodania podręcznika nadają się tylko przedmioty, które mają już swój folder na Dysku
+  const withFolder = sections.filter((sec) => folderKeys.has(sec.key))
   const withBooks = sections.filter((sec) => sec.books.length > 0)
   const withoutBooks = sections.filter((sec) => sec.books.length === 0)
   const nothingFound = searching && withBooks.length === 0 && general.length === 0 && unmatched.length === 0
@@ -182,7 +184,8 @@ export default function TextbooksPage() {
           className="btn-primary"
           onClick={() => setUploading(uploading ? null : {})}
           aria-expanded={!!uploading}
-          disabled={grouped.sections.length === 0}
+          disabled={withFolder.length === 0}
+          title={withFolder.length === 0 ? 'Najpierw utwórz folder przedmiotu przyciskiem „+ Przedmiot”' : undefined}
         >
           Dodaj podręcznik
         </button>
@@ -217,10 +220,16 @@ export default function TextbooksPage() {
         )}
       </div>
 
+      {withFolder.length === 0 && grouped.sections.length > 0 && (
+        <p className="text-muted mt-2 text-xs">
+          Żaden przedmiot nie ma jeszcze folderu — utwórz go przyciskiem „+ Przedmiot”, a potem dodasz do niego podręczniki.
+        </p>
+      )}
+
       {uploading && (
         <AddTextbookForm
           key={uploading.subject ?? 'any'}
-          subjects={grouped.sections.map((sec) => ({ key: sec.key, name: sec.name }))}
+          subjects={withFolder.map((sec) => ({ key: sec.key, name: sec.name }))}
           subfolders={subfoldersOf}
           initialSubject={uploading.subject}
           onDone={(res) => {
