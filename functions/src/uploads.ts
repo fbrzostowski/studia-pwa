@@ -43,3 +43,23 @@ export const isOwnUpload = (path: unknown, uid: string): path is string =>
 
 /** Wartość w apostrofach w zapytaniu Drive (`name = '…'`): ukośnik i apostrof wymagają escape. */
 export const escapeDriveQuery = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+
+export interface DriveErrorInfo {
+  code?: number
+  reason?: string
+  message: string
+}
+
+/** Wyciąga kod HTTP, powód i opis z błędu googleapis (kształt GaxiosError), także gdy pola brakują. */
+export function driveErrorInfo(e: unknown): DriveErrorInfo {
+  const err = e as {
+    code?: number | string
+    message?: string
+    errors?: { reason?: string }[]
+    response?: { status?: number; data?: { error?: { message?: string; errors?: { reason?: string }[] } } }
+  }
+  const nested = err?.response?.data?.error
+  const code = typeof err?.code === 'number' ? err.code : err?.response?.status
+  const reason = err?.errors?.[0]?.reason ?? nested?.errors?.[0]?.reason
+  return { code, reason, message: nested?.message ?? err?.message ?? String(e) }
+}

@@ -4,7 +4,7 @@ import { FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-a
 import { getStorage } from 'firebase-admin/storage'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { logger } from 'firebase-functions'
-import { escapeDriveQuery, isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
+import { driveErrorInfo, escapeDriveQuery, isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
 import {
   FOLDER_MIME,
   exportsToPdf,
@@ -171,6 +171,9 @@ export async function runSync(folderId: string, ctx: { trigger: 'manual' | 'sche
 const NO_PERMISSION =
   'Konto drive-sync nie może zmieniać plików w folderze. Na folderze głównym w Google Drive zmień mu rolę na „Edytujący”.'
 
+const NO_QUOTA =
+  'Konto techniczne drive-sync nie ma miejsca na Dysku, więc nie może tworzyć plików w Twoim folderze (konta usługi nie mają limitu na pliki). Foldery zakłada bez problemu, ale pliki wymagają innego rozwiązania.'
+
 /** Znajduje folder o danej nazwie w folderze nadrzędnym albo go zakłada. */
 async function ensureChildFolder(drive: drive_v3.Drive, parentId: string, name: string) {
   const existing: DriveFolder[] = []
@@ -286,8 +289,12 @@ export async function addTextbookFromUpload(
         supportsAllDrives: true,
       })
     } catch (e) {
-      const code = (e as { code?: number }).code
-      if (code === 403 || code === 404) throw new Error(NO_PERMISSION)
+      const info = driveErrorInfo(e)
+      logger.error('Drive: nie udało się utworzyć pliku', { ...info, name, folderPath })
+      if (info.reason === 'storageQuotaExceeded') throw new Error(NO_QUOTA)
+      if (info.code === 403 || info.code === 404) {
+        throw new Error(`${NO_PERMISSION} (Drive: ${info.reason ?? info.message})`)
+      }
       throw e
     }
     const id = created.data.id

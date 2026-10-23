@@ -69,3 +69,17 @@ describe('escapeDriveQuery', () => {
     expect(server.escapeDriveQuery('zwykła nazwa.pdf')).toBe('zwykła nazwa.pdf')
   })
 })
+
+describe('driveErrorInfo', () => {
+  it('rozpoznaje brak miejsca konta usługi (storageQuotaExceeded) w obu kształtach błędu', () => {
+    const a = { code: 403, errors: [{ reason: 'storageQuotaExceeded' }], message: 'Service Accounts do not have storage quota.' }
+    expect(server.driveErrorInfo(a)).toMatchObject({ code: 403, reason: 'storageQuotaExceeded' })
+    const b = { response: { status: 403, data: { error: { message: 'quota', errors: [{ reason: 'storageQuotaExceeded' }] } } } }
+    expect(server.driveErrorInfo(b)).toMatchObject({ code: 403, reason: 'storageQuotaExceeded', message: 'quota' })
+  })
+  it('radzi sobie z błędami bez struktury', () => {
+    expect(server.driveErrorInfo(new Error('boom'))).toMatchObject({ message: 'boom' })
+    expect(server.driveErrorInfo('tekst').message).toBe('tekst')
+    expect(server.driveErrorInfo(undefined).code).toBeUndefined()
+  })
+})
