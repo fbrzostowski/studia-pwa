@@ -1,12 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import { collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
-import { memberName, useAuth } from '../../firebase/AuthContext'
+import { useAuth } from '../../firebase/AuthContext'
 import MaterialForm from './MaterialForm'
 import { useSubjects } from './useSubjects'
 import SubjectGroups from '../groups/SubjectGroups'
-import { KIND_LABEL, SUBJECT_KINDS, TYPE_LABEL, TYPE_STYLE, type Material, type Subject, type SubjectKind } from './types'
+import AddSubjectForm from './AddSubjectForm'
+import { KIND_LABEL, TYPE_LABEL, TYPE_STYLE, type Material, type Subject } from './types'
 
 export default function MaterialsPage({ initialSubjectId = null }: { initialSubjectId?: string | null }) {
   const { user, profile } = useAuth()
@@ -14,8 +15,6 @@ export default function MaterialsPage({ initialSubjectId = null }: { initialSubj
   const { subjects, error: subjectsError } = useSubjects()
   const [selected, setSelected] = useState<string | null>(initialSubjectId)
   const [materials, setMaterials] = useState<Material[]>([])
-  const [newSubject, setNewSubject] = useState('')
-  const [newKind, setNewKind] = useState<SubjectKind>('WYK')
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
   const [localError, setError] = useState<string | null>(null)
@@ -34,30 +33,6 @@ export default function MaterialsPage({ initialSubjectId = null }: { initialSubj
       (e) => setError(e.message),
     )
   }, [selected])
-
-  const addSubject = async (e: FormEvent) => {
-    e.preventDefault()
-    const name = newSubject.trim()
-    if (!name) return
-    try {
-      // Twórca od razu należy do przedmiotu (reguły sprawdzają istnienie przedmiotu w tej samej paczce).
-      const batch = writeBatch(db)
-      const ref = doc(collection(db, 'subjects'))
-      batch.set(ref, { name, kind: newKind, createdBy: user!.uid, createdAt: serverTimestamp() })
-      batch.set(doc(db, 'memberships', `${ref.id}_${user!.uid}`), {
-        uid: user!.uid,
-        subjectId: ref.id,
-        username: memberName(profile!),
-        classes: [],
-        updatedAt: serverTimestamp(),
-      })
-      await batch.commit()
-      setNewSubject('')
-      setAddingSubject(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
 
   const canEdit = (ownerId: string) => isAdmin || ownerId === user!.uid
 
@@ -119,42 +94,7 @@ export default function MaterialsPage({ initialSubjectId = null }: { initialSubj
         </li>
       </ul>
 
-      {addingSubject && (
-        <form onSubmit={addSubject} className="card mt-2 space-y-3 p-3">
-          <input
-            autoFocus
-            required
-            className="input"
-            placeholder="Nazwa przedmiotu"
-            value={newSubject}
-            onChange={(e) => setNewSubject(e.target.value)}
-          />
-          <div>
-            <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">Rodzaj zajęć</p>
-            <div className="flex flex-wrap gap-2">
-              {SUBJECT_KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className="chip"
-                  aria-pressed={newKind === k}
-                  title={KIND_LABEL[k]}
-                  onClick={() => setNewKind(k)}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-            <p className="text-muted mt-1.5 text-xs">{KIND_LABEL[newKind]}</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="btn-primary">Dodaj przedmiot</button>
-            <button type="button" className="btn-ghost" onClick={() => setAddingSubject(false)}>
-              Anuluj
-            </button>
-          </div>
-        </form>
-      )}
+      {addingSubject && <AddSubjectForm onDone={() => setAddingSubject(false)} />}
 
       {!current && (
         <p className="border-line text-muted mt-6 rounded-2xl border border-dashed p-8 text-center text-sm">
