@@ -196,8 +196,9 @@ describe('własność treści', () => {
     await assertSucceeds(deleteDoc(doc(as('admin'), 'exams/e1')))
   })
   it('exams i subjects: te same zasady własności', async () => {
-    await assertSucceeds(setDoc(doc(as('bob'), 'exams/e2'), { title: 'K', createdBy: 'bob' }))
-    await assertFails(setDoc(doc(as('bob'), 'exams/e3'), { title: 'K', createdBy: 'alice' }))
+    const exam = (by: string) => ({ subjectId: 's1', type: 'MID', date: '2026-11-10', createdBy: by })
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/e2'), exam('bob')))
+    await assertFails(setDoc(doc(as('bob'), 'exams/e3'), exam('alice')))
     await assertFails(deleteDoc(doc(as('bob'), 'exams/e1')))
     await assertSucceeds(setDoc(doc(as('bob'), 'subjects/s2'), { name: 'N', kind: 'WYK+CW', createdBy: 'bob' }))
     await assertFails(setDoc(doc(as('bob'), 'subjects/s4'), { name: 'N', createdBy: 'bob' }))
@@ -397,5 +398,59 @@ describe('materials: podpięcie do lekcji', () => {
     await assertFails(updateDoc(doc(as('alice'), 'materials/m9'), { lessonDate: '2026-10-23' }))
     await assertFails(updateDoc(doc(as('bob'), 'materials/m9'), { lessonDate: 'jutro' }))
     await assertSucceeds(updateDoc(doc(as('bob'), 'materials/m9'), { lessonDate: deleteField(), lessonForm: deleteField(), lessonGroup: deleteField() }))
+  })
+})
+
+describe('exams: terminy mid-term i final exam', () => {
+  const exam = (over: Record<string, unknown> = {}) => ({
+    subjectId: 's1',
+    type: 'MID',
+    date: '2026-11-10',
+    time: '09:30',
+    room: 'G-205',
+    note: 'Rozdziały 1–5',
+    createdBy: 'bob',
+    createdByName: 'X',
+    createdAt: serverTimestamp(),
+    ...over,
+  })
+
+  it('zatwierdzony dodaje mid-term i final exam do istniejącego przedmiotu', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/a'), exam()))
+    // tylko pola obowiązkowe: godzina, sala i uwagi są opcjonalne
+    await assertSucceeds(
+      setDoc(doc(as('bob'), 'exams/b'), { subjectId: 's1', type: 'FIN', date: '2026-12-15', createdBy: 'bob' }),
+    )
+  })
+  it('odrzuca zły typ, datę, godzinę, za długie pola i obce pola', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ type: 'QUIZ' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ date: '10.11.2026' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ date: 20261110 })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ time: '25:00' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ time: '9:30' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ room: 'x'.repeat(101) })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ note: 'x'.repeat(301) })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ extra: 1 })))
+  })
+  it('wymaga istniejącego przedmiotu i podpisu własnym uid', async () => {
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ subjectId: 'brak' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ createdBy: 'alice' })))
+    const { type: _t, ...bezTypu } = exam()
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), bezTypu))
+  })
+  it('pending i anonim nie dodają terminów', async () => {
+    await assertFails(setDoc(doc(as('pending'), 'exams/x'), exam({ createdBy: 'pending' })))
+    await assertFails(setDoc(doc(anon(), 'exams/x'), exam()))
+  })
+  it('autor zmienia swój termin, ale nie autora; obcy nie zmienia; admin usuwa', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'exams/own'), { subjectId: 's1', type: 'MID', date: '2026-11-10', createdBy: 'bob' })
+    })
+    const edited = { subjectId: 's1', type: 'FIN', date: '2026-12-01', createdBy: 'bob' }
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/own'), edited))
+    await assertFails(setDoc(doc(as('bob'), 'exams/own'), { ...edited, createdBy: 'alice' }))
+    await assertFails(setDoc(doc(as('alice'), 'exams/own'), { ...edited, createdBy: 'alice' }))
+    await assertFails(deleteDoc(doc(as('alice'), 'exams/own')))
+    await assertSucceeds(deleteDoc(doc(as('admin'), 'exams/own')))
   })
 })

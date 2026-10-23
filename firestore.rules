@@ -21,6 +21,18 @@ service cloud.firestore {
             && d.lessonForm in ['WYK', 'LAB', 'KON', 'CW']
             && d.lessonGroup is string && d.lessonGroup.size() <= 20);
     }
+    // termin zaliczenia: mid-term (MID) albo final exam (FIN) dla istniejącego przedmiotu
+    function validExam(d) {
+      return d.keys().hasOnly(['subjectId', 'type', 'date', 'time', 'room', 'note', 'createdBy', 'createdByName', 'createdAt'])
+        && d.keys().hasAll(['subjectId', 'type', 'date', 'createdBy'])
+        && d.type in ['MID', 'FIN']
+        && d.date is string && d.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && (!('time' in d) || (d.time is string && d.time.matches('^([01]\\d|2[0-3]):[0-5]\\d$')))
+        && (!('room' in d) || (d.room is string && d.room.size() <= 100))
+        && (!('note' in d) || (d.note is string && d.note.size() <= 300))
+        && (!('createdByName' in d) || (d.createdByName is string && d.createdByName.size() <= 60))
+        && exists(/databases/$(database)/documents/subjects/$(d.subjectId));
+    }
     function validKind(k) { return k in ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']; }
 
     match /users/{uid} {
@@ -112,8 +124,12 @@ service cloud.firestore {
 
     match /exams/{docId} {
       allow read: if isApproved();
-      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAdmin()
+      allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid
+                    && validExam(request.resource.data);
+      allow update: if (isAdmin() || (isApproved() && resource.data.createdBy == request.auth.uid))
+                    && validExam(request.resource.data)
+                    && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin()
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
 
