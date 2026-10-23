@@ -23,10 +23,12 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Przedmioty z planu, których w aplikacji jeszcze nie ma.
-  const all = useMemo(() => (events ? toCandidates(events).candidates : []), [events])
-  const options = useMemo(() => all.filter((c) => !findExisting(c, subjects)), [all, subjects])
-  const hidden = all.length - options.length
+  // Wszystkie przedmioty z planu; te, które już są w aplikacji, pokazujemy wyszarzone i nie da się ich wybrać.
+  const all = useMemo(
+    () => (events ? toCandidates(events).candidates : []).map((c) => ({ ...c, exists: !!findExisting(c, subjects) })),
+    [events, subjects],
+  )
+  const options = useMemo(() => all.filter((c) => !c.exists), [all])
 
   // Nazwa z podpowiedzi (np. folder podręczników) pasująca do przedmiotu z planu wybiera go od razu.
   const preset = initialName ? options.find((o) => norm(o.name) === norm(initialName)) : undefined
@@ -75,20 +77,24 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
     <form onSubmit={submit} className="card mt-2 space-y-3 p-3">
       {events === undefined ? (
         <p className="text-muted text-sm">Ładowanie planu…</p>
-      ) : options.length > 0 ? (
+      ) : all.length > 0 ? (
         <div>
           <p className="text-muted mb-1.5 text-xs font-semibold tracking-wide uppercase">Przedmiot z Twojego planu</p>
           <ul className="max-h-72 space-y-1.5 overflow-y-auto">
-            {options.map((o) => (
+            {all.map((o) => (
               <li key={o.key}>
                 <button
                   type="button"
+                  disabled={o.exists}
                   aria-pressed={selected?.key === o.key}
                   onClick={() => setPick(o.key)}
-                  className="border-line aria-pressed:border-accent aria-pressed:bg-accent-soft flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left"
+                  className="border-line aria-pressed:border-accent aria-pressed:bg-accent-soft flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left disabled:opacity-50"
                 >
                   <span className="min-w-0 break-words">{o.name}</span>
-                  <span className="badge bg-accent-soft text-accent shrink-0">{o.kind}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {o.exists && <span className="text-muted text-xs">już w aplikacji</span>}
+                    <span className="badge bg-accent-soft text-accent">{o.kind}</span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -103,17 +109,15 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
               </button>
             </li>
           </ul>
-          {hidden > 0 && (
+          {options.length === 0 && (
             <p className="text-muted mt-1.5 text-xs">
-              Pozostałe przedmioty z planu ({hidden}) są już w aplikacji.
+              Wszystkie przedmioty z Twojego planu są już w aplikacji. Możesz dodać inny, wpisując nazwę.
             </p>
           )}
         </div>
       ) : (
         <p className="text-muted text-sm">
-          {events === null
-            ? 'Zaimportuj plan z USOS (zakładka Plan), żeby wybierać przedmioty z listy. Na razie wpisz nazwę ręcznie.'
-            : 'Wszystkie przedmioty z Twojego planu są już w aplikacji. Możesz dodać inny, wpisując nazwę.'}
+          Zaimportuj plan z USOS (zakładka Plan), żeby wybierać przedmioty z listy. Na razie wpisz nazwę ręcznie.
         </p>
       )}
 
