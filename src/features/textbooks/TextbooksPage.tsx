@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { collection, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref } from 'firebase/storage'
@@ -6,9 +6,10 @@ import { db, functions, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
+import AddTextbookForm from './AddTextbookForm'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
-import { groupTextbooks, norm, subFolder } from './group'
+import { groupTextbooks, norm, subFolder, topFolder } from './group'
 
 interface Textbook {
   id: string
@@ -18,6 +19,7 @@ interface Textbook {
   size: number
   folder: string
   storagePath: string
+  uploadedBy?: string
   lastSyncedAt?: Timestamp
 }
 
@@ -46,7 +48,7 @@ const fmtSize = (b: number) =>
 
 
 export default function TextbooksPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [books, setBooks] = useState<Textbook[] | null>(null)
   const [sync, setSync] = useState<SyncState | null>(null)
@@ -85,6 +87,7 @@ export default function TextbooksPage() {
   const [adding, setAdding] = useState<{ mode: 'folder' | 'subject'; name: string } | null>(null)
   const [folders, setFolders] = useState<FolderRef[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  const [uploading, setUploading] = useState<{ subject?: string } | null>(null)
 
   // Dział na przedmioty: pierwszy człon folderu na Drive = nazwa przedmiotu w aplikacji.
   const grouped = useMemo(() => {
@@ -92,6 +95,20 @@ export default function TextbooksPage() {
     const found = (books ?? []).filter((b) => !needle || norm(`${b.title} ${b.folder}`).includes(needle))
     return { ...groupTextbooks(found, subjects), searching: !!needle }
   }, [books, subjects, q])
+
+  // podfoldery już używane w danym przedmiocie (podpowiedzi w formularzu wgrywania)
+  const subfoldersOf = useCallback(
+    (key: string) =>
+      [
+        ...new Set(
+          (books ?? [])
+            .filter((b) => norm(topFolder(b.folder)) === key)
+            .map((b) => subFolder(b.folder))
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, 'pl')),
+    [books],
+  )
 
   const open = async (b: Textbook) => {
     // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
@@ -102,6 +119,16 @@ export default function TextbooksPage() {
       else window.location.href = url
     } catch (e) {
       w?.close()
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const remove = async (b: Textbook) => {
+    if (!confirm(`Usunąć „${b.title}”? Plik trafi do kosza na Dysku Google i zniknie z aplikacji.`)) return
+    setError(null)
+    try {
+      await httpsCallable(functions, 'removeTextbook')({ id: b.id })
+    } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
@@ -137,7 +164,7 @@ export default function TextbooksPage() {
           <ul className="grid gap-2 sm:grid-cols-2">
             {items.map((b) => (
               <li key={b.id}>
-                <BookCard book={b} onOpen={open} />
+                <BookCard book={b} canDelete={isAdmin || b.uploadedBy === user!.uid} onOpen={open} onDelete={remove} />
               </li>
             ))}
           </ul>
@@ -149,40 +176,59 @@ export default function TextbooksPage() {
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
-        <div className="flex items-center gap-1">
+      <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          className="btn-primary"
+          onClick={() => setUploading(uploading ? null : {})}
+          aria-expanded={!!uploading}
+          disabled={grouped.sections.length === 0}
+        >
+          Dodaj podręcznik
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => setAdding(adding ? null : { mode: 'folder', name: '' })}
+          aria-expanded={!!adding}
+        >
+          + Przedmiot
+        </button>
+        {isAdmin && (
           <button
-            className="btn-secondary"
-            onClick={() => setAdding(adding ? null : { mode: 'folder', name: '' })}
-            aria-expanded={!!adding}
+            className="btn-ghost ml-auto px-2.5"
+            disabled={busy}
+            onClick={runSync}
+            aria-label="Synchronizuj z Drive"
+            title="Synchronizuj z Drive"
           >
-            + Przedmiot
-          </button>
-          {isAdmin && (
-            <button
-              className="btn-ghost px-2.5"
-              disabled={busy}
-              onClick={runSync}
-              aria-label="Synchronizuj z Drive"
-              title="Synchronizuj z Drive"
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              <svg
-                viewBox="0 0 24 24"
-                className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" />
-              </svg>
-            </button>
-          )}
-        </div>
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" />
+            </svg>
+          </button>
+        )}
       </div>
+
+      {uploading && (
+        <AddTextbookForm
+          key={uploading.subject ?? 'any'}
+          subjects={grouped.sections.map((sec) => ({ key: sec.key, name: sec.name }))}
+          subfolders={subfoldersOf}
+          initialSubject={uploading.subject}
+          onDone={(res) => {
+            setUploading(null)
+            if (res) setNotice(`Dodano „${res.title}” do folderu „${res.folder}” na Dysku Google.`)
+          }}
+        />
+      )}
 
       {adding?.mode === 'folder' && (
         <AddTextbookSubject
@@ -194,7 +240,7 @@ export default function TextbooksPage() {
             if (created) {
               setNotice(
                 created.created
-                  ? `Utworzono folder „${created.name}” na Google Drive. Wrzuć do niego podręczniki i kliknij ikonę synchronizacji.`
+                  ? `Utworzono folder „${created.name}” na Google Drive. Dodaj do niego podręczniki przyciskiem „Dodaj podręcznik”.`
                   : `Folder „${created.name}” już istnieje na Google Drive.`,
               )
             }
@@ -242,8 +288,8 @@ export default function TextbooksPage() {
               <p className="font-medium">Brak podręczników</p>
               <p className="text-muted mx-auto mt-1 max-w-sm text-sm">
                 {isAdmin
-                  ? 'Wrzuć pliki do folderu na Google Drive (podfoldery nazwane jak przedmioty) i kliknij ikonę synchronizacji.'
-                  : 'Administrator jeszcze nie dodał podręczników.'}
+                  ? 'Dodaj pierwszy plik przyciskiem „Dodaj podręcznik”. Trafi do folderu przedmiotu na Dysku Google.'
+                  : 'Nikt jeszcze nie dodał podręczników. Zrób to przyciskiem „Dodaj podręcznik”.'}
               </p>
             </div>
           )}
@@ -263,6 +309,9 @@ export default function TextbooksPage() {
                   <span className="text-muted text-xs font-normal">
                     {sec.books.length} {plural(sec.books.length, 'plik', 'pliki', 'plików')}
                   </span>
+                  <button className="text-accent ml-auto text-xs font-medium" onClick={() => setUploading({ subject: sec.name })}>
+                    + Dodaj plik
+                  </button>
                 </h3>
                 {renderBooks(sec.books)}
               </section>
@@ -317,17 +366,32 @@ export default function TextbooksPage() {
   )
 }
 
-function BookCard({ book: b, onOpen }: { book: Textbook; onOpen: (b: Textbook) => void }) {
+function BookCard({
+  book: b,
+  canDelete,
+  onOpen,
+  onDelete,
+}: {
+  book: Textbook
+  canDelete: boolean
+  onOpen: (b: Textbook) => void
+  onDelete: (b: Textbook) => void
+}) {
   const [, label, style] = kindOf(b.mimeType)
   return (
-    <button className="card hover:bg-accent-soft flex h-full w-full items-start gap-3 p-3.5 text-left" onClick={() => onOpen(b)}>
-      <div className="min-w-0 flex-1">
+    <div className="card hover:bg-accent-soft flex h-full items-start">
+      <button className="min-w-0 flex-1 p-3.5 text-left" onClick={() => onOpen(b)}>
         <p className="font-medium break-words">{b.title}</p>
         <p className="mt-1.5 flex flex-wrap items-center gap-2">
           <span className={`badge ${style}`}>{label}</span>
           {b.size > 0 && <span className="text-muted text-xs">{fmtSize(b.size)}</span>}
         </p>
-      </div>
-    </button>
+      </button>
+      {canDelete && (
+        <button className="btn-danger mt-2 mr-1 shrink-0" onClick={() => onDelete(b)} aria-label={`Usuń podręcznik: ${b.title}`}>
+          Usuń
+        </button>
+      )}
+    </div>
   )
 }

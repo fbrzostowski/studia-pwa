@@ -25,6 +25,15 @@ service firebase.storage {
       allow delete: if isAdmin() || (isApproved() && request.auth.uid == ownerId);
     }
 
+    // tymczasowe wgrania podręczników: tworzy i kasuje tylko autor, a czyta je wyłącznie funkcja
+    // addTextbook (Admin SDK), która przenosi plik na Drive i usuwa go stąd
+    match /uploads/{ownerId}/{allPaths=**} {
+      allow create: if resource == null && isApproved() && request.auth.uid == ownerId
+                    && request.resource.size < 100 * 1024 * 1024;
+      allow read, update: if false;
+      allow delete: if isApproved() && request.auth.uid == ownerId;
+    }
+
     // podręczniki z Drive: zapisuje tylko Cloud Function (Admin SDK)
     match /textbooks/{allPaths=**} {
       allow read: if isApproved();

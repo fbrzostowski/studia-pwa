@@ -4,7 +4,7 @@ import { defineString } from 'firebase-functions/params'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { ensureSubjectFolder, runSync } from './driveSync.js'
+import { addTextbookFromUpload, deleteTextbook, ensureSubjectFolder, runSync } from './driveSync.js'
 
 initializeApp()
 
@@ -49,6 +49,28 @@ export const createSubjectFolder = onCall(async (req) => {
   } catch (e) {
     throw new HttpsError('failed-precondition', e instanceof Error ? e.message : String(e))
   }
+})
+
+/** Dodanie podręcznika z pliku wgranego w aplikacji (wszyscy zatwierdzeni; nikt nie ma dostępu do Drive). */
+export const addTextbook = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Zaloguj się.')
+  const me = await getFirestore().doc(`users/${req.auth.uid}`).get()
+  if (me.get('status') !== 'approved') throw new HttpsError('permission-denied', 'Konto nie jest zatwierdzone.')
+  const name = String(me.get('username') ?? me.get('displayName') ?? '')
+  try {
+    return await addTextbookFromUpload(DRIVE_FOLDER_ID.value(), req.auth.uid, name, req.data ?? {})
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : String(e))
+  }
+})
+
+/** Usunięcie podręcznika przez autora wgrania lub admina. */
+export const removeTextbook = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Zaloguj się.')
+  const me = await getFirestore().doc(`users/${req.auth.uid}`).get()
+  if (me.get('status') !== 'approved') throw new HttpsError('permission-denied', 'Konto nie jest zatwierdzone.')
+  await deleteTextbook(req.data?.id, req.auth.uid, me.get('role') === 'admin')
+  return { ok: true }
 })
 
 /** Codzienna synchronizacja w nocy. */

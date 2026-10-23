@@ -86,3 +86,34 @@ describe('storage: textbooks/', () => {
     await assertFails(deleteObject(ref(st('admin'), 'textbooks/book.pdf')))
   })
 })
+
+describe('storage: uploads/{uid}/ (tymczasowe wgrania podręczników)', () => {
+  it('approved wgrywa do własnego katalogu i może skasować swój plik', async () => {
+    await assertSucceeds(uploadBytes(ref(st('bob'), 'uploads/bob/1-a.pdf'), bytes(100)))
+    await assertSucceeds(deleteObject(ref(st('bob'), 'uploads/bob/1-a.pdf')))
+  })
+  it('nie wgrasz do katalogu innej osoby; pending i anonim nie wgrywają', async () => {
+    await assertFails(uploadBytes(ref(st('bob'), 'uploads/alice/1-a.pdf'), bytes(100)))
+    await assertFails(uploadBytes(ref(st('pending'), 'uploads/pending/1-a.pdf'), bytes(100)))
+    await assertFails(uploadBytes(ref(env.unauthenticatedContext().storage(), 'uploads/x/1-a.pdf'), bytes(100)))
+  })
+  it('limit 100 MB: poniżej przechodzi, od 100 MB jest odrzucane', async () => {
+    await assertSucceeds(uploadBytes(ref(st('bob'), 'uploads/bob/ok.bin'), bytes(26 * 1024 * 1024)))
+    await assertFails(uploadBytes(ref(st('bob'), 'uploads/bob/big.bin'), bytes(100 * 1024 * 1024)))
+  })
+  it('nikt nie czyta z klienta (także autor i admin) i nie nadpisuje istniejącego pliku', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), 'uploads/bob/seed.pdf'), bytes(10))
+    })
+    await assertFails(getBytes(ref(st('bob'), 'uploads/bob/seed.pdf')))
+    await assertFails(getBytes(ref(st('admin'), 'uploads/bob/seed.pdf')))
+    await assertFails(uploadBytes(ref(st('bob'), 'uploads/bob/seed.pdf'), bytes(20)))
+  })
+  it('cudzego pliku nie skasujesz, własny tak', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), 'uploads/bob/seed2.pdf'), bytes(10))
+    })
+    await assertFails(deleteObject(ref(st('alice'), 'uploads/bob/seed2.pdf')))
+    await assertSucceeds(deleteObject(ref(st('bob'), 'uploads/bob/seed2.pdf')))
+  })
+})
