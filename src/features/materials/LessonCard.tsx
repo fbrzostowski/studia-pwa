@@ -4,6 +4,7 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { normGroup, type IcsEvent } from '../schedule/parseIcs'
 import MaterialCard from './MaterialCard'
+import MaterialForm from './MaterialForm'
 import { TYPE_LABEL, TYPE_STYLE, type Material, type Subject } from './types'
 
 export const FORM_STYLE: Record<string, string> = {
@@ -98,7 +99,7 @@ function AttachExisting({
   )
 }
 
-/** Lekcja z planu z podpiętymi notatkami. Notatki dodaje się w widoku Przedmioty, tu można podpiąć własną istniejącą. */
+/** Lekcja z planu z podpiętymi materiałami: można dodać plik lub link albo podpiąć własny istniejący (notatki pisze się w widoku Przedmioty). */
 export default function LessonCard({
   e,
   subject,
@@ -110,7 +111,7 @@ export default function LessonCard({
   notes: Material[]
   onOpenSubject: (id: string) => void
 }) {
-  const [attaching, setAttaching] = useState(false)
+  const [mode, setMode] = useState<'new' | 'attach' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const date = e.start.slice(0, 10)
   const lesson = { date, form: e.form, group: e.group }
@@ -161,10 +162,16 @@ export default function LessonCard({
               ))}
             </ul>
           )}
-          {attaching && <AttachExisting subject={subject} lesson={lesson} onDone={() => setAttaching(false)} />}
-          {!attaching && (
+          {mode === 'new' && (
+            <MaterialForm subjectId={subject.id} lesson={lesson} types={['slide', 'link']} onDone={() => setMode(null)} />
+          )}
+          {mode === 'attach' && <AttachExisting subject={subject} lesson={lesson} onDone={() => setMode(null)} />}
+          {mode === null && (
             <div className="flex flex-wrap items-center gap-1">
-              <button className="btn-secondary" onClick={() => setAttaching(true)}>
+              <button className="btn-secondary" onClick={() => setMode('new')}>
+                + Plik lub link
+              </button>
+              <button className="btn-ghost" onClick={() => setMode('attach')}>
                 Podepnij notatkę
               </button>
               <button className="btn-ghost ml-auto" onClick={() => onOpenSubject(subject.id)}>

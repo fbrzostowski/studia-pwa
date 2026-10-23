@@ -3,11 +3,28 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { shownName, useAuth } from '../../firebase/AuthContext'
+import { normGroup } from '../schedule/parseIcs'
 import { MAX_FILE_BYTES, TYPE_LABEL, type MaterialType } from './types'
 
-export default function MaterialForm({ subjectId, onDone }: { subjectId: string; onDone: () => void }) {
+const ALL_TYPES: MaterialType[] = ['note', 'slide', 'link']
+
+/**
+ * Dodawanie materiału do przedmiotu. `lesson` podpina go do konkretnej lekcji z planu,
+ * a `types` zawęża dostępne rodzaje (np. tylko plik i link, bez pisania notatki).
+ */
+export default function MaterialForm({
+  subjectId,
+  lesson,
+  types = ALL_TYPES,
+  onDone,
+}: {
+  subjectId: string
+  lesson?: { date: string; form: string; group?: string }
+  types?: MaterialType[]
+  onDone: () => void
+}) {
   const { user, profile } = useAuth()
-  const [type, setType] = useState<MaterialType>('note')
+  const [type, setType] = useState<MaterialType>(types[0])
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [url, setUrl] = useState('')
@@ -34,6 +51,7 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
         ownerId: user!.uid,
         ownerName: profile ? shownName(profile) : '',
         createdAt: serverTimestamp(),
+        ...(lesson ? { lessonDate: lesson.date, lessonForm: lesson.form, lessonGroup: normGroup(lesson.group) } : {}),
       }
       if (type === 'note') data.content = content
       if (type === 'link') data.url = url
@@ -56,7 +74,7 @@ export default function MaterialForm({ subjectId, onDone }: { subjectId: string;
   return (
     <form onSubmit={submit} className="card mt-4 space-y-3 p-4">
       <div className="bg-bg border-line flex gap-1 rounded-xl border p-1">
-        {(Object.keys(TYPE_LABEL) as MaterialType[]).map((t) => (
+        {types.map((t) => (
           <button
             key={t}
             type="button"
