@@ -1,3 +1,6 @@
+// Reguły sprawdzają status konta w Firestore (firestore.get), więc agent usługi Storage
+// musi mieć rolę roles/firebaserules.firestoreServiceAgent — nadaje ją `firebase deploy`
+// uruchomiony z flagą --interactive (inaczej CLI pomija ten krok).
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {

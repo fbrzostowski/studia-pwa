@@ -3,18 +3,9 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { shownName, useAuth } from '../../firebase/AuthContext'
-import { normGroup } from '../schedule/parseIcs'
 import { MAX_FILE_BYTES, TYPE_LABEL, type MaterialType } from './types'
 
-export default function MaterialForm({
-  subjectId,
-  lesson,
-  onDone,
-}: {
-  subjectId: string
-  lesson?: { date: string; form: string; group?: string } // podpięcie do lekcji z planu
-  onDone: () => void
-}) {
+export default function MaterialForm({ subjectId, onDone }: { subjectId: string; onDone: () => void }) {
   const { user, profile } = useAuth()
   const [type, setType] = useState<MaterialType>('note')
   const [title, setTitle] = useState('')
@@ -43,7 +34,6 @@ export default function MaterialForm({
         ownerId: user!.uid,
         ownerName: profile ? shownName(profile) : '',
         createdAt: serverTimestamp(),
-        ...(lesson ? { lessonDate: lesson.date, lessonForm: lesson.form, lessonGroup: normGroup(lesson.group) } : {}),
       }
       if (type === 'note') data.content = content
       if (type === 'link') data.url = url
