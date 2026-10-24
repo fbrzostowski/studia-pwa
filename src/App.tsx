@@ -10,6 +10,7 @@ import ExamsPage from './features/exams/ExamsPage'
 import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
+import UpdateBanner from './components/UpdateBanner'
 
 const logo = `${import.meta.env.BASE_URL}favicon.svg`
 
@@ -18,6 +19,7 @@ function Centered({ children }: { children: ReactNode }) {
   return (
     <>
       <OfflineBanner />
+      <UpdateBanner />
       <main className="flex min-h-dvh flex-col items-center justify-center p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-sm">
           <InstallHint />
@@ -118,6 +120,7 @@ function Panel() {
   return (
     <>
       <OfflineBanner />
+      <UpdateBanner />
       <header className="border-line bg-surface/85 sticky top-0 z-10 border-b pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
           {settings ? (

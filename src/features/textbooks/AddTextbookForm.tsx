@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions'
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage'
 import { functions, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
+import { uploadErrorMessage } from '../../lib/errors'
 import { ACCEPT, checkFile, tempName, titleFromFile } from './upload'
 
 export interface SubjectOption {
@@ -76,7 +77,7 @@ export default function AddTextbookForm({
     } catch (err) {
       // funkcja sprząta po sobie, ale gdy do niej nie doszło, usuwamy plik tymczasowy sami
       await deleteObject(ref(storage, path)).catch(() => {})
-      setError(err instanceof Error ? err.message : String(err))
+      setError(uploadErrorMessage(err))
       setPhase('idle')
       setProgress(null)
     }

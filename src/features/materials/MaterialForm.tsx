@@ -3,6 +3,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { shownName, useAuth } from '../../firebase/AuthContext'
+import { uploadErrorMessage } from '../../lib/errors'
 import { normGroup } from '../schedule/parseIcs'
 import { MAX_FILE_BYTES, TYPE_LABEL, type MaterialType } from './types'
 
@@ -66,7 +67,7 @@ export default function MaterialForm({
     } catch (err) {
       // nie zostawiaj osieroconego pliku, jeśli zapis dokumentu się nie udał
       if (storagePath) await deleteObject(ref(storage, storagePath)).catch(() => {})
-      setError(err instanceof Error ? err.message : String(err))
+      setError(uploadErrorMessage(err))
       setBusy(false)
     }
   }
