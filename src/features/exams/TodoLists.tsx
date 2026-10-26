@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import Sheet, { useSheetLock } from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import type { ExamSection } from './logic'
 import { defaultListName, itemsFromMaterials, progress, syncWithMaterials, type TodoItem, type TodoList } from './todo'
@@ -16,6 +17,7 @@ function NewList({ sections, onDone }: { sections: Section[]; onDone: () => void
   const [count, setCount] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useSheetLock(busy)
 
   // ile materiałów trafi na listę (podgląd dla wybranego przedmiotu)
   useEffect(() => {
@@ -56,7 +58,7 @@ function NewList({ sections, onDone }: { sections: Section[]; onDone: () => void
   }
 
   return (
-    <form onSubmit={submit} className="card mt-3 space-y-3 p-3">
+    <form onSubmit={submit} className="space-y-3">
       <select className="input" value={key} onChange={(e) => pick(e.target.value)} aria-label="Przedmiot">
         {sections.map((s) => (
           <option key={s.key} value={s.key}>
@@ -228,7 +230,9 @@ export default function TodoLists({ sections }: { sections: Section[] }) {
         </button>
       </div>
 
-      {creating && <NewList sections={sections} onDone={() => setCreating(false)} />}
+      <Sheet open={creating} title="Nowa lista do nauki" onClose={() => setCreating(false)}>
+        {creating && <NewList sections={sections} onDone={() => setCreating(false)} />}
+      </Sheet>
 
       {lists === null ? (
         <p className="text-muted mt-4">Ładowanie…</p>

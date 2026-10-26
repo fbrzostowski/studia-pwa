@@ -3,6 +3,7 @@ import { collection, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref } from 'firebase/storage'
 import { db, functions, storage } from '../../firebase/config'
+import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
@@ -176,39 +177,45 @@ export default function TextbooksPage() {
         </p>
       )}
 
-      {uploading && (
-        <AddTextbookForm
-          key={uploading.subject ?? 'any'}
-          subjects={withFolder.map((sec) => ({ key: sec.key, name: sec.name }))}
-          subfolders={subfoldersOf}
-          initialSubject={uploading.subject}
-          onDone={(res) => {
-            setUploading(null)
-            if (res) setNotice(`Dodano „${res.title}” do „${res.folder}”.`)
-          }}
-        />
-      )}
+      <Sheet open={!!uploading} title="Dodaj podręcznik" onClose={() => setUploading(null)}>
+        {uploading && (
+          <AddTextbookForm
+            key={uploading.subject ?? 'any'}
+            subjects={withFolder.map((sec) => ({ key: sec.key, name: sec.name }))}
+            subfolders={subfoldersOf}
+            initialSubject={uploading.subject}
+            onDone={(res) => {
+              setUploading(null)
+              if (res) setNotice(`Dodano „${res.title}” do „${res.folder}”.`)
+            }}
+          />
+        )}
+      </Sheet>
 
-      {adding?.mode === 'folder' && (
-        <AddTextbookSubject
-          key="folder"
-          initialName={adding.name}
-          folders={folders}
-          onDone={(created) => {
-            setAdding(null)
-            if (created) {
-              setNotice(
-                created.created
-                  ? `Dodano przedmiot „${created.name}” do podręczników. Dodaj do niego podręczniki przyciskiem „Dodaj podręcznik”.`
-                  : `Przedmiot „${created.name}” ma już folder w podręcznikach.`,
-              )
-            }
-          }}
-        />
-      )}
-      {adding?.mode === 'subject' && (
-        <AddSubjectForm key={adding.name} initialName={adding.name} onDone={() => setAdding(null)} />
-      )}
+      <Sheet open={adding?.mode === 'folder'} title="Dodaj przedmiot do podręczników" onClose={() => setAdding(null)}>
+        {adding?.mode === 'folder' && (
+            <AddTextbookSubject
+              key="folder"
+              initialName={adding.name}
+              folders={folders}
+              onDone={(created) => {
+                setAdding(null)
+                if (created) {
+                  setNotice(
+                    created.created
+                      ? `Dodano przedmiot „${created.name}” do podręczników. Dodaj do niego podręczniki przyciskiem „Dodaj podręcznik”.`
+                      : `Przedmiot „${created.name}” ma już folder w podręcznikach.`,
+                  )
+                }
+              }}
+            />
+        )}
+      </Sheet>
+      <Sheet open={adding?.mode === 'subject'} title="Nowy przedmiot" onClose={() => setAdding(null)}>
+        {adding?.mode === 'subject' && (
+          <AddSubjectForm key={adding.name} initialName={adding.name} onDone={() => setAdding(null)} />
+        )}
+      </Sheet>
 
       {notice && (
         <p className="bg-accent-soft text-accent mt-2 flex items-start justify-between gap-3 rounded-xl p-3 text-sm">

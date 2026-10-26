@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '../../firebase/config'
+import { useSheetLock } from '../../components/Sheet'
 import { memberName, useAuth } from '../../firebase/AuthContext'
 import { norm } from '../../lib/text'
 import { KIND_LABEL, SUBJECT_KINDS, type SubjectKind } from '../materials/types'
@@ -43,6 +44,7 @@ export default function AddTextbookSubject({
   const [pick, setPick] = useState<string | null>(null)
   const [kind, setKind] = useState<SubjectKind>('WYK')
   const [busy, setBusy] = useState(false)
+  useSheetLock(busy)
   const [error, setError] = useState<string | null>(null)
 
   const folderKeys = useMemo(() => new Set(folders.map((f) => norm(f.name))), [folders])
@@ -131,7 +133,7 @@ export default function AddTextbookSubject({
   }
 
   return (
-    <form onSubmit={submit} className="card mt-2 space-y-3 p-3">
+    <form onSubmit={submit} className="space-y-3">
       <input
         autoFocus
         required

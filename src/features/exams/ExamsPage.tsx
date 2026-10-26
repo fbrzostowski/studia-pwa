@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import { useMemberships } from '../groups/hooks'
 import { KIND_LABEL } from '../materials/types'
@@ -79,15 +80,21 @@ export default function ExamsPage() {
         </p>
       )}
 
-      {form && view !== 'todo' && (
-        <ExamForm
-          key={form.exam?.id ?? `${form.sectionKey}-${form.type}-${form.date}`}
-          sections={allSections}
-          exam={form.exam}
-          preset={{ sectionKey: form.sectionKey, type: form.type, date: form.date }}
-          onDone={() => setForm(null)}
-        />
-      )}
+      <Sheet
+        open={!!form && view !== 'todo'}
+        title={form?.exam ? 'Edytuj termin' : 'Dodaj termin zaliczenia'}
+        onClose={() => setForm(null)}
+      >
+        {form && view !== 'todo' && (
+          <ExamForm
+            key={form.exam?.id ?? `${form.sectionKey}-${form.type}-${form.date}`}
+            sections={allSections}
+            exam={form.exam}
+            preset={{ sectionKey: form.sectionKey, type: form.type, date: form.date }}
+            onDone={() => setForm(null)}
+          />
+        )}
+      </Sheet>
 
       {subjects.length > 0 && view === 'calendar' && (
         <div className="mt-4">

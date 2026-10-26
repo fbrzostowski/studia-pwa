@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
@@ -76,7 +77,9 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
         </li>
       </ul>
 
-      {addingSubject && <AddSubjectForm onDone={() => setAddingSubject(false)} />}
+      <Sheet open={addingSubject} title="Nowy przedmiot" onClose={() => setAddingSubject(false)}>
+        {addingSubject && <AddSubjectForm onDone={() => setAddingSubject(false)} />}
+      </Sheet>
 
       {!current && (
         <p className="border-line text-muted mt-6 rounded-2xl border border-dashed p-8 text-center text-sm">

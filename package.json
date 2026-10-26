@@ -9,10 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore,storage --project studia-pwa-test 'vitest run'",
-    "test:unit": "vitest run tests/parseIcs.test.ts tests/weeks.test.ts tests/plural.test.ts tests/textbooksNames.test.ts tests/textbooksGroup.test.ts tests/match.test.ts tests/examsLogic.test.ts tests/todo.test.ts tests/uploads.test.ts tests/errors.test.ts"
+    "test:unit": "vitest run tests/parseIcs.test.ts tests/weeks.test.ts tests/plural.test.ts tests/textbooksNames.test.ts tests/textbooksGroup.test.ts tests/match.test.ts tests/examsLogic.test.ts tests/todo.test.ts tests/uploads.test.ts tests/errors.test.ts tests/sheetLogic.test.ts"
   },
   "dependencies": {
     "firebase": "^13.1.0",
+    "motion": "^14.6.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

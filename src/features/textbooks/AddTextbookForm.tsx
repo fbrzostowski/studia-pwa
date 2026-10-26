@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions'
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage'
 import { functions, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
+import { useSheetLock } from '../../components/Sheet'
 import { uploadErrorMessage } from '../../lib/errors'
 import { ACCEPT, checkFile, tempName, titleFromFile } from './upload'
 
@@ -41,6 +42,7 @@ export default function AddTextbookForm({
   const subject = subjects.find((s) => s.key === subjectKey)
   const suggestions = useMemo(() => subfolders(subjectKey), [subfolders, subjectKey])
   const busy = phase !== 'idle'
+  useSheetLock(busy) // nie zamykaj arkusza w trakcie wysyłania pliku
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -84,7 +86,7 @@ export default function AddTextbookForm({
   }
 
   return (
-    <form onSubmit={submit} className="card mt-2 space-y-3 p-3">
+    <form onSubmit={submit} className="space-y-3">
       <select
         required
         className="input"

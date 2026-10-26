@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useSheetLock } from '../../components/Sheet'
 import { memberName, useAuth } from '../../firebase/AuthContext'
 import { norm } from '../../lib/text'
 import { findExisting } from '../schedule/match'
@@ -22,6 +23,7 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
   const [pick, setPick] = useState<string | null>(null) // klucz wybranego przedmiotu z planu
   const [kind, setKind] = useState<SubjectKind>('WYK')
   const [busy, setBusy] = useState(false)
+  useSheetLock(busy)
   const [error, setError] = useState<string | null>(null)
   const touched = useRef(false)
 
@@ -96,7 +98,7 @@ export default function AddSubjectForm({ initialName = '', onDone }: { initialNa
   }
 
   return (
-    <form onSubmit={submit} className="card mt-2 space-y-3 p-3">
+    <form onSubmit={submit} className="space-y-3">
       <input
         autoFocus
         required

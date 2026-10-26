@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { memberName, useAuth } from '../../firebase/AuthContext'
+import { useSheetLock } from '../../components/Sheet'
 import { usePlanEvents } from '../schedule/usePlan'
 import { suggestSlots, type ExamSection } from './logic'
 import { EXAM_LABEL, EXAM_TYPES, type Exam, type ExamType } from './types'
@@ -33,6 +34,7 @@ export default function ExamForm({
   const [error, setError] = useState<string | null>(null)
 
   const section = sections.find((s) => s.key === sectionKey)
+  useSheetLock(busy)
 
   // --- godzina i sala z planu: wpisujemy je jako wartości domyślne, ale użytkownik musi je zatwierdzić ---
   const events = usePlanEvents()
@@ -117,7 +119,7 @@ export default function ExamForm({
   }
 
   return (
-    <form onSubmit={submit} className="card mt-3 space-y-3 p-3">
+    <form onSubmit={submit} className="space-y-3">
       <select
         required
         className="input"
