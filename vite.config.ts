@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // GitHub Pages serwuje projekt pod /<nazwa-repo>/
-const base = '/studia-pwa/'
+const base = '/'
 
 // https://vite.dev/config/
 export default defineConfig({
