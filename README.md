@@ -1,32 +1,41 @@
-# React + TypeScript + Vite
+# Łomiankowe SGH (LOM.SGH)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplikacja do organizacji zajęć na studiach: plan z USOS, wspólne materiały, podręczniki, zaliczenia i listy do nauki.
+Działa jako zwykła strona na komputerze i jako PWA (dodana do ekranu głównego) na telefonie.
 
-Currently, two official plugins are available:
+**Strona:** https://fbrzostowski.github.io/studia-pwa/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Co potrafi
 
-## React Compiler
+- **Plan** — import pliku `.ics` z USOS, widok „dziś i dalej”, grupy zajęciowe i informacja, kto z nas ma razem zajęcia.
+- **Materiały** — kalendarz miesiąca z notatkami podpiętymi do lekcji oraz materiały per przedmiot (notatki, pliki, linki).
+- **Podręczniki** — pliki wgrywane przez aplikację, podział na przedmioty i podfoldery.
+- **Zaliczenia** — terminy mid-term i final exam (kalendarz, lista) oraz prywatne listy do nauki.
+- Konta przez Google; nowe konto czeka na zatwierdzenie przez administratora.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Stos
 
-## Expanding the Oxlint configuration
+React + Vite + TypeScript, Tailwind CSS, `vite-plugin-pwa`; backend Firebase (Auth, Firestore, Storage, Cloud Functions);
+hosting GitHub Pages.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Praca lokalna
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install --legacy-peer-deps
+npm run dev            # serwer deweloperski
+npm run build          # build produkcyjny
+npm run test:rules     # testy reguł Firestore/Storage i logiki (emulator Firebase, wymaga Javy)
+npm run test:unit      # tylko testy logiki, bez emulatora
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Wdrażanie
+
+- **Strona** wdraża się sama po pushu na `main` (GitHub Actions, `.github/workflows/deploy.yml`).
+- **Funkcje i reguły** wdrażaj z flagą `--interactive` (inaczej krok z rolą IAM dla Storage jest pomijany):
+
+  ```sh
+  npx firebase-tools deploy --only functions,firestore:rules,storage --project studia-pwa --interactive --force
+  ```
+
+Szczegóły: [`PLAN.md`](PLAN.md) (założenia), [`docs/podreczniki.md`](docs/podreczniki.md) (podręczniki),
+[`docs/storage-bucket.md`](docs/storage-bucket.md) (bucket w us-central1 i koszty).
