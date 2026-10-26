@@ -10,6 +10,10 @@ import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
+import { findSubjectForEvent } from '../schedule/match'
+import { ongoingEvents } from '../schedule/now'
+import { usePlanEvents } from '../schedule/usePlan'
+import { toLocalIso } from '../schedule/weeks'
 import { groupTextbooks, norm, subFolder, topFolder } from './group'
 
 interface Textbook {
@@ -25,12 +29,21 @@ interface Textbook {
   createdAt?: Timestamp
 }
 
+interface Live {
+  start: string
+  end: string
+  room?: string
+  form: string
+}
+
 interface Tile {
   key: string
   name: string
   kinds: string[]
   books: Textbook[]
   type: 'subject' | 'unmatched' | 'general'
+  live?: Live // trwa teraz lekcja tego przedmiotu (z planu użytkownika)
+  missing?: boolean // przedmiot z lekcji nie ma jeszcze folderu w podręcznikach
 }
 
 function FolderIcon({ className = '' }: { className?: string }) {
@@ -87,6 +100,12 @@ export default function TextbooksPage() {
   )
 
   const { subjects } = useSubjects()
+  const events = usePlanEvents()
+  const [now, setNow] = useState(() => toLocalIso(new Date()))
+  useEffect(() => {
+    const t = setInterval(() => setNow(toLocalIso(new Date())), 30_000) // „teraz” odświeża się co pół minuty
+    return () => clearInterval(t)
+  }, [])
   // folder: nowy przedmiot z folderem w podręcznikach; subject: sam przedmiot dla folderu, który już ma pliki
   const [adding, setAdding] = useState<{ mode: 'folder' | 'subject'; name: string } | null>(null)
   const [folders, setFolders] = useState<FolderRef[]>([])
@@ -173,6 +192,24 @@ export default function TextbooksPage() {
     ...(general.length > 0 ? [{ key: 'general', name: 'Ogólne', kinds: [], books: general, type: 'general' as const }] : []),
   ]
   const openTile = openKey ? tiles.find((t) => t.key === openKey) : undefined
+
+  // Przedmiot trwającej właśnie lekcji ląduje na początku i jest wyróżniony; bez folderu dostaje własny kafelek.
+  const live = useMemo(() => {
+    const m = new Map<string, Live & { subjectName: string }>()
+    for (const e of ongoingEvents(events ?? [], now)) {
+      const subject = findSubjectForEvent(subjects, e)
+      if (subject && !m.has(norm(subject.name))) {
+        m.set(norm(subject.name), { start: e.start, end: e.end, room: e.room, form: e.form, subjectName: subject.name })
+      }
+    }
+    return m
+  }, [events, subjects, now])
+  const shownTiles: Tile[] = [
+    ...tiles.map((t) => (t.type === 'subject' && live.has(t.key) ? { ...t, live: live.get(t.key) } : t)),
+    ...[...live.entries()]
+      .filter(([key]) => !tiles.some((t) => t.key === key))
+      .map(([key, l]) => ({ key, name: l.subjectName, kinds: [], books: [], type: 'subject' as const, live: l, missing: true })),
+  ].sort((a, b) => Number(!!b.live) - Number(!!a.live)) // sort jest stabilny: reszta zostaje alfabetycznie
   const openFolder = openTile?.type === 'subject' ? folders.find((f) => norm(f.name) === openTile.key) : undefined
 
   // Pliki jednego przedmiotu: najpierw z folderu głównego, potem po podfolderach (np. „Prezentacje”).
@@ -374,19 +411,31 @@ export default function TextbooksPage() {
             </div>
           ) : (
             tiles.length > 0 && (
-              <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
-                {tiles.map((t) => (
+              <ul className="mt-5 grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
+                {shownTiles.map((t) => (
                   <li key={t.key}>
                     <button
-                      className="card hover:bg-accent-soft flex min-h-32 w-full flex-col items-start gap-2 p-4 text-left"
-                      onClick={() => setOpenKey(t.key)}
+                      className={`card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left ${t.live ? 'ring-accent bg-accent-soft ring-2' : ''}`}
+                      onClick={() => (t.missing ? setAdding({ mode: 'folder', name: t.name }) : setOpenKey(t.key))}
+                      aria-label={t.live ? `${t.name} — trwa teraz` : undefined}
                     >
-                      <FolderIcon className="text-accent h-9 w-9" />
+                      <span className="flex w-full items-start justify-between gap-2">
+                        <FolderIcon className="text-accent h-9 w-9" />
+                        {t.live && <span className="badge bg-accent shrink-0 text-white">Trwa teraz</span>}
+                      </span>
                       <span className="line-clamp-3 font-semibold break-words">{t.name}</span>
+                      {t.live && (
+                        <span className="text-accent text-xs font-medium">
+                          {t.live.form} · {t.live.start.slice(11)}–{t.live.end.slice(11)}
+                          {t.live.room ? ` · sala ${t.live.room}` : ''}
+                        </span>
+                      )}
                       <span className="text-muted mt-auto flex flex-wrap items-center gap-1.5 text-xs">
-                        {t.books.length === 0
-                          ? 'Brak plików'
-                          : `${t.books.length} ${plural(t.books.length, 'plik', 'pliki', 'plików')}`}
+                        {t.missing
+                          ? 'Brak folderu — dotknij, aby utworzyć'
+                          : t.books.length === 0
+                            ? 'Brak plików'
+                            : `${t.books.length} ${plural(t.books.length, 'plik', 'pliki', 'plików')}`}
                         {t.type === 'unmatched' && (
                           <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">brak przedmiotu</span>
                         )}
