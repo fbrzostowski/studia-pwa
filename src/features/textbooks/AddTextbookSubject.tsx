@@ -23,7 +23,7 @@ interface Entry {
 }
 
 /**
- * Wybór przedmiotu, któremu ma powstać folder z podręcznikami na Google Drive. Lista to przedmioty
+ * Wybór przedmiotu, któremu ma powstać folder z podręcznikami. Lista to przedmioty
  * (z planu i z aplikacji) bez takiego folderu; pole nazwy ją filtruje. Przedmiot, którego jeszcze
  * nie ma w aplikacji, jest zakładany razem z folderem.
  */
@@ -118,7 +118,7 @@ export default function AddTextbookSubject({
         await batch.commit()
       }
 
-      // 2) folder na Drive (funkcja zakłada go w folderze głównym albo zwraca istniejący)
+      // 2) folder podręczników (funkcja zakłada go albo zwraca istniejący)
       const res = await httpsCallable<{ name: string }, { id: string; name: string; created: boolean }>(
         functions,
         'createSubjectFolder',
@@ -187,7 +187,7 @@ export default function AddTextbookSubject({
         )}
         {isNewSubject && (
           <p className="text-muted mt-1.5 text-xs">
-            Nowy przedmiot „{finalName}” — zostanie dodany razem z folderem na Drive.
+            Nowy przedmiot „{finalName}” — zostanie dodany razem z folderem podręczników.
           </p>
         )}
       </div>

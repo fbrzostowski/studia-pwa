@@ -158,7 +158,10 @@ Uwagi:
 - **Dostęp do Google Calendar (kolosy)** — osobny, dodatkowy scope (`calendar.events`), osobna zgoda per użytkownik, własna konfiguracja w Google Cloud Console (OAuth consent screen). Dotyczy użytkownika, który chce dopisać termin do swojego kalendarza.
 - **Dostęp do Twojego Google Drive (podręczniki/prezentacje)** — **nie** dotyczy zwykłych użytkowników appki w ogóle. To osobny mechanizm: service account (tożsamość techniczna w Google Cloud, nie login człowieka), której udostępniasz jeden folder na swoim prywatnym Drive. Żaden użytkownik appki nie loguje się do Twojego Drive i nie widzi go bezpośrednio — zawsze przechodzi przez Firestore/Storage.
 
-## 7. Synchronizacja Google Drive → Firebase (service account)
+## 7. Synchronizacja Google Drive
+
+> **Aktualizacja:** synchronizacja z Dysku Google (ten rozdział) została zastąpiona wgrywaniem plików w aplikacji do Firebase Storage — patrz `docs/podreczniki.md`.
+ → Firebase (service account)
 
 Kroki konfiguracji (jednorazowe):
 

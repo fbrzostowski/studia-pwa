@@ -156,14 +156,8 @@ service cloud.firestore {
       allow write: if false; // tylko Cloud Function (Admin SDK)
     }
 
-    // foldery przedmiotów na Drive (zapisuje Cloud Function): po nich wiadomo, które przedmioty mają folder
+    // foldery przedmiotów w podręcznikach (zapisuje Cloud Function): po nich wiadomo, które przedmioty mają folder
     match /textbookFolders/{docId} {
-      allow read: if isApproved();
-      allow write: if false;
-    }
-
-    // stan synchronizacji podręczników (zapisuje Cloud Function)
-    match /meta/{docId} {
       allow read: if isApproved();
       allow write: if false;
     }

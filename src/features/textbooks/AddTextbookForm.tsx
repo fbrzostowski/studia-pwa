@@ -12,8 +12,8 @@ export interface SubjectOption {
 }
 
 /**
- * Wgrywanie podręcznika z komputera lub telefonu. Plik trafia najpierw do Storage, a funkcja addTextbook
- * przenosi go do folderu przedmiotu na Google Drive (nikt nie ma bezpośredniego dostępu do Dysku).
+ * Wgrywanie podręcznika z komputera lub telefonu. Plik trafia najpierw do katalogu tymczasowego w Storage,
+ * a funkcja addTextbook sprawdza go i przenosi do podręczników wybranego przedmiotu.
  */
 export default function AddTextbookForm({
   subjects,
@@ -35,7 +35,7 @@ export default function AddTextbookForm({
   const [autoTitle, setAutoTitle] = useState('') // tytuł podpowiedziany z nazwy pliku (do rozpoznania ręcznej zmiany)
   const [file, setFile] = useState<File | null>(null)
   const [progress, setProgress] = useState<number | null>(null) // 0–100 podczas wysyłania
-  const [phase, setPhase] = useState<'idle' | 'upload' | 'drive'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'upload' | 'save'>('idle')
   const [error, setError] = useState<string | null>(null)
 
   const subject = subjects.find((s) => s.key === subjectKey)
@@ -63,7 +63,7 @@ export default function AddTextbookForm({
         )
       })
 
-      setPhase('drive')
+      setPhase('save')
       const res = await httpsCallable<
         { uploadPath: string; subject: string; subfolder: string; title: string },
         { title: string; folder: string }
@@ -159,7 +159,7 @@ export default function AddTextbookForm({
           <p className="text-muted mt-1 text-xs">Wysyłanie… {progress}%</p>
         </div>
       )}
-      {phase === 'drive' && <p className="text-muted text-sm">Zapisuję w folderze przedmiotu na Dysku Google…</p>}
+      {phase === 'save' && <p className="text-muted text-sm">Zapisuję podręcznik…</p>}
       {error && <p className="text-danger text-sm">{error}</p>}
 
       <div className="flex gap-2">

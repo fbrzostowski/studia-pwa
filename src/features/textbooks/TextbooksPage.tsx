@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { collection, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
+import { collection, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref } from 'firebase/storage'
 import { db, functions, storage } from '../../firebase/config'
@@ -20,17 +20,7 @@ interface Textbook {
   folder: string
   storagePath: string
   uploadedBy?: string
-  lastSyncedAt?: Timestamp
-}
-
-interface SyncState {
-  added: number
-  updated: number
-  removed: number
-  unchanged: number
-  skipped: { name: string; reason: string }[]
-  lastRunAt?: Timestamp
-  trigger?: 'manual' | 'schedule'
+  createdAt?: Timestamp
 }
 
 const KIND: [RegExp, string, string][] = [
@@ -51,9 +41,7 @@ export default function TextbooksPage() {
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [books, setBooks] = useState<Textbook[] | null>(null)
-  const [sync, setSync] = useState<SyncState | null>(null)
   const [q, setQ] = useState('')
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(
@@ -77,19 +65,15 @@ export default function TextbooksPage() {
       ),
     [],
   )
-  useEffect(
-    () => onSnapshot(doc(db, 'meta', 'textbooksSync'), (s) => setSync(s.exists() ? (s.data() as SyncState) : null), () => {}),
-    [],
-  )
 
   const { subjects } = useSubjects()
-  // folder: nowy przedmiot z folderem na Drive; subject: sam przedmiot dla folderu, który już jest na Drive
+  // folder: nowy przedmiot z folderem w podręcznikach; subject: sam przedmiot dla folderu, który już ma pliki
   const [adding, setAdding] = useState<{ mode: 'folder' | 'subject'; name: string } | null>(null)
   const [folders, setFolders] = useState<FolderRef[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [uploading, setUploading] = useState<{ subject?: string } | null>(null)
 
-  // Dział na przedmioty: pierwszy człon folderu na Drive = nazwa przedmiotu w aplikacji.
+  // Dział na przedmioty: pierwszy człon folderu = nazwa przedmiotu w aplikacji.
   const grouped = useMemo(() => {
     const needle = norm(q)
     const found = (books ?? []).filter((b) => !needle || norm(`${b.title} ${b.folder}`).includes(needle))
@@ -124,7 +108,7 @@ export default function TextbooksPage() {
   }
 
   const remove = async (b: Textbook) => {
-    if (!confirm(`Usunąć „${b.title}”? Plik trafi do kosza na Dysku Google i zniknie z aplikacji.`)) return
+    if (!confirm(`Usunąć „${b.title}”? Plik zniknie z aplikacji.`)) return
     setError(null)
     try {
       await httpsCallable(functions, 'removeTextbook')({ id: b.id })
@@ -133,22 +117,10 @@ export default function TextbooksPage() {
     }
   }
 
-  const runSync = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await httpsCallable(functions, 'syncTextbooks', { timeout: 540_000 })()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const total = books?.length ?? 0
   const folderKeys = useMemo(() => new Set(folders.map((f) => norm(f.name))), [folders])
   const { sections, general, unmatched, searching } = grouped
-  // do dodania podręcznika nadają się tylko przedmioty, które mają już swój folder na Dysku
+  // do dodania podręcznika nadają się tylko przedmioty, które mają już swój folder
   const withFolder = sections.filter((sec) => folderKeys.has(sec.key))
   const withBooks = sections.filter((sec) => sec.books.length > 0)
   const withoutBooks = sections.filter((sec) => sec.books.length === 0)
@@ -196,28 +168,6 @@ export default function TextbooksPage() {
         >
           + Przedmiot
         </button>
-        {isAdmin && (
-          <button
-            className="btn-ghost ml-auto px-2.5"
-            disabled={busy}
-            onClick={runSync}
-            aria-label="Synchronizuj z Drive"
-            title="Synchronizuj z Drive"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" />
-            </svg>
-          </button>
-        )}
       </div>
 
       {withFolder.length === 0 && grouped.sections.length > 0 && (
@@ -234,7 +184,7 @@ export default function TextbooksPage() {
           initialSubject={uploading.subject}
           onDone={(res) => {
             setUploading(null)
-            if (res) setNotice(`Dodano „${res.title}” do folderu „${res.folder}” na Dysku Google.`)
+            if (res) setNotice(`Dodano „${res.title}” do „${res.folder}”.`)
           }}
         />
       )}
@@ -249,8 +199,8 @@ export default function TextbooksPage() {
             if (created) {
               setNotice(
                 created.created
-                  ? `Utworzono folder „${created.name}” na Google Drive. Dodaj do niego podręczniki przyciskiem „Dodaj podręcznik”.`
-                  : `Folder „${created.name}” już istnieje na Google Drive.`,
+                  ? `Dodano przedmiot „${created.name}” do podręczników. Dodaj do niego podręczniki przyciskiem „Dodaj podręcznik”.`
+                  : `Przedmiot „${created.name}” ma już folder w podręcznikach.`,
               )
             }
           }}
@@ -266,15 +216,6 @@ export default function TextbooksPage() {
           <button className="shrink-0 underline" onClick={() => setNotice(null)}>
             Zamknij
           </button>
-        </p>
-      )}
-
-      {isAdmin && sync?.lastRunAt && (
-        <p className="text-muted mt-2 text-xs">
-          Ostatnia synchronizacja {sync.lastRunAt.toDate().toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}
-          {sync.trigger === 'schedule' ? ' (automatyczna)' : ''}: +{sync.added} nowe, {sync.updated} zaktualizowane,{' '}
-          {sync.removed} usunięte
-          {sync.skipped.length > 0 && `, pominięte: ${sync.skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}`}
         </p>
       )}
 
@@ -297,7 +238,7 @@ export default function TextbooksPage() {
               <p className="font-medium">Brak podręczników</p>
               <p className="text-muted mx-auto mt-1 max-w-sm text-sm">
                 {isAdmin
-                  ? 'Dodaj pierwszy plik przyciskiem „Dodaj podręcznik”. Trafi do folderu przedmiotu na Dysku Google.'
+                  ? 'Dodaj pierwszy plik przyciskiem „Dodaj podręcznik”.'
                   : 'Nikt jeszcze nie dodał podręczników. Zrób to przyciskiem „Dodaj podręcznik”.'}
               </p>
             </div>
@@ -362,7 +303,7 @@ export default function TextbooksPage() {
               )}
               {withoutBooks.some((sec) => !folderKeys.has(sec.key)) && (
                 <p>
-                  Bez folderu na Drive:{' '}
+                  Bez folderu:{' '}
                   {withoutBooks.filter((sec) => !folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}. Dodasz go
                   przyciskiem „+ Przedmiot”.
                 </p>
