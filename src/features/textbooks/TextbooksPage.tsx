@@ -221,7 +221,7 @@ export default function TextbooksPage() {
       .map(([sub, items]) => (
         <div key={sub || '_'} className="mt-2">
           {sub && <p className="text-muted mb-1.5 text-xs font-medium">{sub}</p>}
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {items.map((b) => (
               <li key={b.id}>
                 <BookCard book={b} canDelete={isAdmin || b.uploadedBy === user!.uid} onOpen={open} onDelete={remove} />
@@ -472,30 +472,35 @@ function BookCard({
   onDelete: (b: Textbook) => void
 }) {
   const [, label, style] = kindOf(b.mimeType)
+  const hint = `${b.title} · ${label}${b.size > 0 ? ` · ${fmtSize(b.size)}` : ''}`
   return (
-    <div className="card hover:bg-accent-soft flex h-full items-start">
-      <button className="flex min-w-0 flex-1 items-start gap-3 p-3 text-left" onClick={() => onOpen(b)}>
+    <div className="relative">
+      <button
+        className="border-line block aspect-[3/4] w-full overflow-hidden rounded-xl border text-left shadow-sm transition-transform active:scale-[0.98]"
+        onClick={() => onOpen(b)}
+        aria-label={`Otwórz: ${b.title}`}
+        title={hint}
+      >
         {b.cover ? (
-          <img src={b.cover} alt="" loading="lazy" className="border-line h-[84px] w-[63px] shrink-0 rounded-md border object-cover shadow-sm" />
+          <img src={b.cover} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <span
-            className={`flex h-[84px] w-[63px] shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${style}`}
-            aria-hidden="true"
-          >
-            {label}
+          // Bez okładki tytuł nie jest nigdzie zapisany, więc pokazujemy go na kafelku.
+          <span className={`flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center ${style}`}>
+            <span className="text-xs font-semibold">{label}</span>
+            <span className="text-sm font-medium break-words">{b.title}</span>
           </span>
         )}
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium break-words">{b.title}</span>
-          <span className="mt-1.5 flex flex-wrap items-center gap-2">
-            <span className={`badge ${style}`}>{label}</span>
-            {b.size > 0 && <span className="text-muted text-xs">{fmtSize(b.size)}</span>}
-          </span>
-        </span>
       </button>
       {canDelete && (
-        <button className="btn-danger mt-2 mr-1 shrink-0" onClick={() => onDelete(b)} aria-label={`Usuń podręcznik: ${b.title}`}>
-          Usuń
+        <button
+          className="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm hover:bg-black/75"
+          onClick={() => onDelete(b)}
+          aria-label={`Usuń podręcznik: ${b.title}`}
+          title="Usuń"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       )}
     </div>
