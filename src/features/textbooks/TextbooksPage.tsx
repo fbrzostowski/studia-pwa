@@ -24,6 +24,22 @@ interface Textbook {
   createdAt?: Timestamp
 }
 
+interface Tile {
+  key: string
+  name: string
+  kinds: string[]
+  books: Textbook[]
+  type: 'subject' | 'unmatched' | 'general'
+}
+
+function FolderIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" fillOpacity="0.16" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  )
+}
+
 const KIND: [RegExp, string, string][] = [
   [/pdf/, 'PDF', 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300'],
   [/presentation|powerpoint/, 'Prezentacja', 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300'],
@@ -73,6 +89,7 @@ export default function TextbooksPage() {
   const [folders, setFolders] = useState<FolderRef[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [uploading, setUploading] = useState<{ subject?: string } | null>(null)
+  const [openKey, setOpenKey] = useState<string | null>(null) // otwarty folder przedmiotu
 
   // Dział na przedmioty: pierwszy człon folderu = nazwa przedmiotu w aplikacji.
   const grouped = useMemo(() => {
@@ -126,6 +143,22 @@ export default function TextbooksPage() {
   const withBooks = sections.filter((sec) => sec.books.length > 0)
   const withoutBooks = sections.filter((sec) => sec.books.length === 0)
   const nothingFound = searching && withBooks.length === 0 && general.length === 0 && unmatched.length === 0
+
+  // Kafelki-foldery: przedmioty z folderem lub z plikami, foldery bez przedmiotu i „Ogólne”.
+  const tiles: Tile[] = [
+    ...sections
+      .filter((sec) => folderKeys.has(sec.key) || sec.books.length > 0)
+      .map((sec) => ({
+        key: sec.key,
+        name: sec.name,
+        kinds: [...new Set(sec.subjects.map((s) => s.kind))],
+        books: sec.books,
+        type: 'subject' as const,
+      })),
+    ...unmatched.map((u) => ({ key: `u:${norm(u.folder)}`, name: u.folder, kinds: [], books: u.books, type: 'unmatched' as const })),
+    ...(general.length > 0 ? [{ key: 'general', name: 'Ogólne', kinds: [], books: general, type: 'general' as const }] : []),
+  ]
+  const openTile = openKey ? tiles.find((t) => t.key === openKey) : undefined
 
   // Pliki jednego przedmiotu: najpierw z folderu głównego, potem po podfolderach (np. „Prezentacje”).
   const renderBooks = (list: Textbook[]) => {
@@ -228,6 +261,54 @@ export default function TextbooksPage() {
 
       {books === null ? (
         <p className="text-muted mt-4">Ładowanie…</p>
+      ) : openTile ? (
+        <section className="mt-4">
+          <button className="btn-ghost -ml-3 gap-1" onClick={() => setOpenKey(null)}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Podręczniki
+          </button>
+
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <FolderIcon className="text-accent h-7 w-7 shrink-0" />
+            <h3 className="min-w-0 text-xl font-semibold tracking-tight break-words">{openTile.name}</h3>
+            {openTile.kinds.map((k) => (
+              <span key={k} className="badge bg-accent-soft text-accent">
+                {k}
+              </span>
+            ))}
+          </div>
+          <p className="text-muted mt-1 text-sm">
+            {openTile.books.length === 0
+              ? 'Brak plików'
+              : `${openTile.books.length} ${plural(openTile.books.length, 'plik', 'pliki', 'plików')}`}
+          </p>
+
+          <div className="mt-3">
+            {openTile.type === 'subject' && (
+              <button className="btn-primary" onClick={() => setUploading({ subject: openTile.name })} disabled={!folderKeys.has(openTile.key)}>
+                Dodaj plik
+              </button>
+            )}
+            {openTile.type === 'unmatched' && (
+              <>
+                <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">brak przedmiotu</span>
+                <button className="text-accent ml-2 text-sm font-medium" onClick={() => setAdding({ mode: 'subject', name: openTile.name })}>
+                  Utwórz przedmiot „{openTile.name}”
+                </button>
+              </>
+            )}
+          </div>
+
+          {openTile.books.length === 0 ? (
+            <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
+              Ten folder jest jeszcze pusty. Dodaj pierwszy plik przyciskiem „Dodaj plik”.
+            </p>
+          ) : (
+            renderBooks(openTile.books)
+          )}
+        </section>
       ) : (
         <>
           {total > 0 && (
@@ -240,82 +321,69 @@ export default function TextbooksPage() {
             />
           )}
 
-          {total === 0 && (
+          {total === 0 && tiles.length === 0 && (
             <div className="border-line mt-4 rounded-2xl border border-dashed p-8 text-center">
               <p className="font-medium">Brak podręczników</p>
               <p className="text-muted mx-auto mt-1 max-w-sm text-sm">
-                {isAdmin
-                  ? 'Dodaj pierwszy plik przyciskiem „Dodaj podręcznik”.'
-                  : 'Nikt jeszcze nie dodał podręczników. Zrób to przyciskiem „Dodaj podręcznik”.'}
+                Zacznij od przycisku „+ Przedmiot”, a potem dodaj pierwszy plik przyciskiem „Dodaj podręcznik”.
               </p>
             </div>
           )}
 
           {nothingFound && <p className="text-muted mt-4 text-sm">Nic nie pasuje do „{q}”.</p>}
 
-          <div className="mt-5 space-y-6">
-            {withBooks.map((sec) => (
-              <section key={sec.key}>
-                <h3 className="flex flex-wrap items-center gap-2 font-semibold">
-                  {sec.name}
-                  {[...new Set(sec.subjects.map((s) => s.kind))].map((k) => (
-                    <span key={k} className="badge bg-accent-soft text-accent">
-                      {k}
-                    </span>
-                  ))}
-                  <span className="text-muted text-xs font-normal">
-                    {sec.books.length} {plural(sec.books.length, 'plik', 'pliki', 'plików')}
-                  </span>
-                  <button className="text-accent ml-auto text-xs font-medium" onClick={() => setUploading({ subject: sec.name })}>
-                    + Dodaj plik
-                  </button>
-                </h3>
-                {renderBooks(sec.books)}
-              </section>
-            ))}
-
-            {unmatched.map((u) => (
-              <section key={u.folder}>
-                <h3 className="flex flex-wrap items-center gap-2 font-semibold">
-                  {u.folder}
-                  <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-                    brak przedmiotu
-                  </span>
-                  <button
-                    className="text-accent text-xs font-medium"
-                    onClick={() => setAdding({ mode: 'subject', name: u.folder })}
-                  >
-                    Utwórz przedmiot „{u.folder}”
-                  </button>
-                </h3>
-                {renderBooks(u.books)}
-              </section>
-            ))}
-
-            {general.length > 0 && (
-              <section>
-                <h3 className="text-muted font-semibold">Ogólne</h3>
-                {renderBooks(general)}
-              </section>
-            )}
-          </div>
-
-          {!searching && withoutBooks.length > 0 && (
-            <div className="text-muted mt-6 space-y-1 text-xs">
-              {withoutBooks.some((sec) => folderKeys.has(sec.key)) && (
-                <p>
-                  Foldery czekają na pliki:{' '}
-                  {withoutBooks.filter((sec) => folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}.
-                </p>
-              )}
-              {withoutBooks.some((sec) => !folderKeys.has(sec.key)) && (
-                <p>
-                  Bez folderu:{' '}
-                  {withoutBooks.filter((sec) => !folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}. Dodasz go
-                  przyciskiem „+ Przedmiot”.
-                </p>
-              )}
+          {searching ? (
+            // wyniki wyszukiwania: pliki pogrupowane po przedmiotach, z przejściem do folderu
+            <div className="mt-5 space-y-6">
+              {tiles
+                .filter((t) => t.books.length > 0)
+                .map((t) => (
+                  <section key={t.key}>
+                    <h3 className="flex flex-wrap items-center gap-2 font-semibold">
+                      {t.name}
+                      <span className="text-muted text-xs font-normal">
+                        {t.books.length} {plural(t.books.length, 'plik', 'pliki', 'plików')}
+                      </span>
+                      <button className="text-accent ml-auto text-xs font-medium" onClick={() => { setQ(''); setOpenKey(t.key) }}>
+                        Otwórz folder
+                      </button>
+                    </h3>
+                    {renderBooks(t.books)}
+                  </section>
+                ))}
             </div>
+          ) : (
+            tiles.length > 0 && (
+              <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
+                {tiles.map((t) => (
+                  <li key={t.key}>
+                    <button
+                      className="card hover:bg-accent-soft flex min-h-32 w-full flex-col items-start gap-2 p-4 text-left"
+                      onClick={() => setOpenKey(t.key)}
+                    >
+                      <FolderIcon className="text-accent h-9 w-9" />
+                      <span className="line-clamp-3 font-semibold break-words">{t.name}</span>
+                      <span className="text-muted mt-auto flex flex-wrap items-center gap-1.5 text-xs">
+                        {t.books.length === 0
+                          ? 'Brak plików'
+                          : `${t.books.length} ${plural(t.books.length, 'plik', 'pliki', 'plików')}`}
+                        {t.type === 'unmatched' && (
+                          <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">brak przedmiotu</span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+
+          {!searching && withoutBooks.some((sec) => !folderKeys.has(sec.key)) && (
+            <p className="text-muted mt-6 text-xs">
+              Bez folderu:{' '}
+              {withoutBooks.filter((sec) => !folderKeys.has(sec.key)).map((sec) => sec.name).join(', ')}. Dodasz go
+              przyciskiem „+ Przedmiot”.
+            </p>
           )}
         </>
       )}
