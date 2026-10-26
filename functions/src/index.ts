@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { addTextbookFromUpload, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
+import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 
 initializeApp()
 
@@ -50,5 +50,12 @@ export const addTextbook = onCall(async (req) => {
 export const removeTextbook = onCall(async (req) => {
   const me = await approvedUser(req.auth?.uid)
   await deleteTextbook(req.data?.id, req.auth!.uid, me.get('role') === 'admin')
+  return { ok: true }
+})
+
+/** Usunięcie pustego folderu przedmiotu w podręcznikach przez autora folderu lub admina. */
+export const removeTextbookFolder = onCall(async (req) => {
+  const me = await approvedUser(req.auth?.uid)
+  await deleteSubjectFolder(req.data?.id, req.auth!.uid, me.get('role') === 'admin')
   return { ok: true }
 })

@@ -3,7 +3,8 @@ import { getStorage } from 'firebase-admin/storage'
 import { logger } from 'firebase-functions'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { STORAGE_BUCKET } from './config.js'
-import { fileNameFor, findByName, folderPath, storagePathFor, titleOf, validFolderName } from './textbooks.js'
+import { validCover } from './covers.js'
+import { canDelete, fileNameFor, findByName, folderHasBooks, folderPath, storagePathFor, titleOf, validFolderName } from './textbooks.js'
 import { isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
 
 const bucket = () => getStorage().bucket(STORAGE_BUCKET)
@@ -35,9 +36,11 @@ export async function ensureSubjectFolder(rawName: unknown, by: string) {
 export async function addTextbookFromUpload(
   uid: string,
   uploaderName: string,
-  input: { uploadPath?: unknown; subject?: unknown; subfolder?: unknown; title?: unknown },
+  input: { uploadPath?: unknown; subject?: unknown; subfolder?: unknown; title?: unknown; cover?: unknown },
 ) {
   if (!isOwnUpload(input.uploadPath, uid)) throw new Error('Nieprawidłowa ścieżka pliku.')
+  const cover = validCover(input.cover)
+  if (cover === null) throw new Error('Nieprawidłowa okładka (JPEG do ok. 67 kB).')
   const subject = validFolderName(input.subject)
   if (!subject) throw new Error('Wybierz przedmiot.')
   const subfolder = input.subfolder === undefined || input.subfolder === '' ? null : validFolderName(input.subfolder)
@@ -77,6 +80,7 @@ export async function addTextbookFromUpload(
         mimeType: mime,
         size,
         folder: path,
+        ...(cover ? { cover } : {}),
         storagePath: finalPath,
         addedBy: 'upload',
         uploadedBy: uid,
@@ -100,11 +104,29 @@ export async function deleteTextbook(id: unknown, uid: string, isAdmin: boolean)
   const ref = getFirestore().doc(`textbooks/${id}`)
   const snap = await ref.get()
   if (!snap.exists) throw new HttpsError('not-found', 'Nie ma takiego podręcznika.')
-  if (!isAdmin && snap.get('uploadedBy') !== uid) {
+  if (!canDelete(snap.get('uploadedBy'), uid, isAdmin)) {
     throw new HttpsError('permission-denied', 'Usunąć może tylko autor wgrania albo administrator.')
   }
   const path = snap.get('storagePath')
   if (typeof path === 'string' && path) await bucket().file(path).delete({ ignoreNotFound: true }).catch(() => {})
   await ref.delete()
   logger.info('Usunięto podręcznik', { id })
+}
+
+/** Usuwa pusty folder przedmiotu w podręcznikach. Może autor folderu albo admin; folder z plikami trzeba najpierw opróżnić. */
+export async function deleteSubjectFolder(id: unknown, uid: string, isAdmin: boolean) {
+  if (typeof id !== 'string' || !id) throw new HttpsError('invalid-argument', 'Brak identyfikatora folderu.')
+  const db = getFirestore()
+  const ref = db.doc(`textbookFolders/${id}`)
+  const snap = await ref.get()
+  if (!snap.exists) throw new HttpsError('not-found', 'Nie ma takiego folderu.')
+  if (!canDelete(snap.get('createdBy'), uid, isAdmin)) {
+    throw new HttpsError('permission-denied', 'Usunąć może tylko autor folderu albo administrator.')
+  }
+  const books = await db.collection('textbooks').select('folder').get()
+  if (folderHasBooks(String(snap.get('name') ?? ''), books.docs.map((d) => String(d.get('folder') ?? '')))) {
+    throw new HttpsError('failed-precondition', 'Folder nie jest pusty — najpierw usuń znajdujące się w nim podręczniki.')
+  }
+  await ref.delete()
+  logger.info('Usunięto folder', { id })
 }

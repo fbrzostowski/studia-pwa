@@ -25,6 +25,14 @@ export const titleOf = (name: string) => name.replace(/\.[^./\\]{1,5}$/, '').tri
 export const findByName = <T extends { name: string }>(list: T[], name: string) =>
   list.find((x) => norm(x.name) === norm(name))
 
+/** Usunąć wpis może jego autor albo administrator (wpisy bez zapisanego autora tylko administrator). */
+export const canDelete = (author: unknown, uid: string, isAdmin: boolean) =>
+  isAdmin || (typeof author === 'string' && author !== '' && author === uid)
+
+/** Czy w folderze przedmiotu są jeszcze pliki (po pierwszym członie ścieżki, bez rozróżniania wielkości liter). */
+export const folderHasBooks = (folderName: string, bookFolders: string[]) =>
+  bookFolders.some((f) => norm(f.split('/')[0] ?? '') === norm(folderName))
+
 /** Ścieżka grupy w aplikacji: „Przedmiot” albo „Przedmiot / Podfolder”. */
 export const folderPath = (subject: string, subfolder: string | null) =>
   subfolder ? `${subject} / ${subfolder}` : subject

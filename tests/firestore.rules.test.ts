@@ -498,3 +498,70 @@ describe('todoLists: prywatne listy do nauki', () => {
     await assertFails(setDoc(doc(anon(), 'todoLists/x'), list()))
   })
 })
+
+describe('własność wpisów: zmieniać i usuwać może tylko autor albo admin', () => {
+  // [kolekcja, pole autora, dokument początkowy]
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['subjects', 'createdBy', { name: 'Własny', kind: 'WYK', createdBy: 'alice' }],
+    ['materials', 'ownerId', { title: 'Własny', subjectId: 's1', type: 'note', ownerId: 'alice' }],
+    ['exams', 'createdBy', { subjectId: 's1', type: 'MID', date: '2026-11-10', createdBy: 'alice' }],
+  ]
+
+  for (const [col, field, seed] of cases) {
+    describe(col, () => {
+      const path = `${col}/wlasny`
+      const seedDoc = () =>
+        env.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), path), seed)
+        })
+
+      it('autor usuwa swój wpis', async () => {
+        await seedDoc()
+        await assertSucceeds(deleteDoc(doc(as('alice'), path)))
+      })
+      it('admin usuwa cudzy wpis', async () => {
+        await seedDoc()
+        await assertSucceeds(deleteDoc(doc(as('admin'), path)))
+      })
+      it('inny zatwierdzony użytkownik nie usuwa i nie zmienia cudzego wpisu', async () => {
+        await seedDoc()
+        await assertFails(deleteDoc(doc(as('bob'), path)))
+        await assertFails(updateDoc(doc(as('bob'), path), { [field]: 'bob' }))
+        await assertFails(setDoc(doc(as('bob'), path), { ...seed, [field]: 'bob' }))
+      })
+      it('pending, rejected i anonim nie usuwają', async () => {
+        await seedDoc()
+        for (const who of [as('pending'), as('rejected'), anon()]) await assertFails(deleteDoc(doc(who, path)))
+      })
+      it('autor nie może przepisać autorstwa na kogoś innego (ani admin)', async () => {
+        await seedDoc()
+        await assertFails(updateDoc(doc(as('alice'), path), { [field]: 'bob' }))
+        await assertFails(updateDoc(doc(as('admin'), path), { [field]: 'bob' }))
+      })
+      it('autor nadal może normalnie zmienić własny wpis', async () => {
+        await seedDoc()
+        const change = col === 'subjects' ? { name: 'Nowa nazwa' } : col === 'materials' ? { title: 'Nowy tytuł' } : { time: '10:00' }
+        await assertSucceeds(updateDoc(doc(as('alice'), path), change))
+      })
+    })
+  }
+
+  it('członkostwo usuwa tylko jego właściciel albo admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'memberships/s1_alice'), { uid: 'alice', subjectId: 's1', username: 'X', classes: [] })
+    })
+    await assertFails(deleteDoc(doc(as('bob'), 'memberships/s1_alice')))
+    await assertSucceeds(deleteDoc(doc(as('alice'), 'memberships/s1_alice')))
+  })
+
+  it('podręczniki i foldery podręczników nie są usuwalne z klienta (tylko przez funkcję z kontrolą autora)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'textbooks/t9'), { title: 'T', uploadedBy: 'alice' })
+      await setDoc(doc(ctx.firestore(), 'textbookFolders/f9'), { name: 'F', createdBy: 'alice' })
+    })
+    for (const path of ['textbooks/t9', 'textbookFolders/f9']) {
+      await assertFails(deleteDoc(doc(as('alice'), path)))
+      await assertFails(deleteDoc(doc(as('admin'), path)))
+    }
+  })
+})

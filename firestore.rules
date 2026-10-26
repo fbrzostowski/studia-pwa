@@ -95,8 +95,10 @@ service cloud.firestore {
       allow read: if isApproved();
       allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid
                     && validKind(request.resource.data.kind);
+      // autorstwo jest niezmienne: tylko autor lub admin zmienia i usuwa wpis, i nikt nie przepisuje go na kogoś innego
       allow update: if (isAdmin() || (isApproved() && resource.data.createdBy == request.auth.uid))
-                    && validKind(request.resource.data.kind);
+                    && validKind(request.resource.data.kind)
+                    && request.resource.data.createdBy == resource.data.createdBy;
       allow delete: if isAdmin()
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
@@ -135,7 +137,8 @@ service cloud.firestore {
       allow create: if isApproved() && request.resource.data.ownerId == request.auth.uid
                     && validLesson(request.resource.data);
       allow update: if (isAdmin() || (isApproved() && resource.data.ownerId == request.auth.uid))
-                    && validLesson(request.resource.data);
+                    && validLesson(request.resource.data)
+                    && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if isAdmin()
         || (isApproved() && resource.data.ownerId == request.auth.uid);
     }

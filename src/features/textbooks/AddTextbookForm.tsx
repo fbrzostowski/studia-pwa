@@ -5,6 +5,7 @@ import { functions, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useSheetLock } from '../../components/Sheet'
 import { uploadErrorMessage } from '../../lib/errors'
+import CoverPicker from './CoverPicker'
 import { ACCEPT, checkFile, tempName, titleFromFile } from './upload'
 
 export interface SubjectOption {
@@ -35,6 +36,7 @@ export default function AddTextbookForm({
   const [title, setTitle] = useState('')
   const [autoTitle, setAutoTitle] = useState('') // tytuł podpowiedziany z nazwy pliku (do rozpoznania ręcznej zmiany)
   const [file, setFile] = useState<File | null>(null)
+  const [cover, setCover] = useState('') // miniatura okładki (data URL) albo pusty tekst
   const [progress, setProgress] = useState<number | null>(null) // 0–100 podczas wysyłania
   const [phase, setPhase] = useState<'idle' | 'upload' | 'save'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -67,13 +69,14 @@ export default function AddTextbookForm({
 
       setPhase('save')
       const res = await httpsCallable<
-        { uploadPath: string; subject: string; subfolder: string; title: string },
+        { uploadPath: string; subject: string; subfolder: string; title: string; cover: string },
         { title: string; folder: string }
       >(functions, 'addTextbook', { timeout: 540_000 })({
         uploadPath: path,
         subject: subject.name,
         subfolder: subfolder.trim(),
         title: title.trim(),
+        cover,
       })
       onDone(res.data)
     } catch (err) {
@@ -128,6 +131,16 @@ export default function AddTextbookForm({
         disabled={busy}
         onChange={(e) => setTitle(e.target.value)}
       />
+
+      {file && !checkFile(file) && (
+        <CoverPicker
+          file={file}
+          title={title.trim() || titleFromFile(file.name)}
+          subject={subject?.name ?? ''}
+          value={cover}
+          onChange={setCover}
+        />
+      )}
 
       <div>
         <input

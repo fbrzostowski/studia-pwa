@@ -20,6 +20,7 @@ interface Textbook {
   size: number
   folder: string
   storagePath: string
+  cover?: string // miniatura JPEG (data URL)
   uploadedBy?: string
   createdAt?: Timestamp
 }
@@ -77,7 +78,9 @@ export default function TextbooksPage() {
     () =>
       onSnapshot(
         collection(db, 'textbookFolders'),
-        (snap) => setFolders(snap.docs.map((d) => ({ id: d.id, name: d.get('name') as string }))),
+        (snap) => setFolders(
+            snap.docs.map((d) => ({ id: d.id, name: d.get('name') as string, createdBy: d.get('createdBy') as string | undefined })),
+          ),
         () => setFolders([]),
       ),
     [],
@@ -125,6 +128,17 @@ export default function TextbooksPage() {
     }
   }
 
+  const removeFolder = async (id: string, name: string) => {
+    if (!confirm(`Usunąć pusty folder „${name}”? Przedmiot zostanie w aplikacji, znika tylko jego folder w podręcznikach.`)) return
+    setError(null)
+    try {
+      await httpsCallable(functions, 'removeTextbookFolder')({ id })
+      setOpenKey(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const remove = async (b: Textbook) => {
     if (!confirm(`Usunąć „${b.title}”? Plik zniknie z aplikacji.`)) return
     setError(null)
@@ -159,6 +173,7 @@ export default function TextbooksPage() {
     ...(general.length > 0 ? [{ key: 'general', name: 'Ogólne', kinds: [], books: general, type: 'general' as const }] : []),
   ]
   const openTile = openKey ? tiles.find((t) => t.key === openKey) : undefined
+  const openFolder = openTile?.type === 'subject' ? folders.find((f) => norm(f.name) === openTile.key) : undefined
 
   // Pliki jednego przedmiotu: najpierw z folderu głównego, potem po podfolderach (np. „Prezentacje”).
   const renderBooks = (list: Textbook[]) => {
@@ -302,9 +317,14 @@ export default function TextbooksPage() {
           </div>
 
           {openTile.books.length === 0 ? (
-            <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
-              Ten folder jest jeszcze pusty. Dodaj pierwszy plik przyciskiem „Dodaj plik”.
-            </p>
+            <div className="border-line mt-4 rounded-2xl border border-dashed p-8 text-center">
+              <p className="text-muted text-sm">Ten folder jest jeszcze pusty. Dodaj pierwszy plik przyciskiem „Dodaj plik”.</p>
+              {openFolder && (isAdmin || openFolder.createdBy === user!.uid) && (
+                <button className="btn-danger mt-3" onClick={() => removeFolder(openFolder.id, openFolder.name)}>
+                  Usuń folder
+                </button>
+              )}
+            </div>
           ) : (
             renderBooks(openTile.books)
           )}
@@ -405,12 +425,24 @@ function BookCard({
   const [, label, style] = kindOf(b.mimeType)
   return (
     <div className="card hover:bg-accent-soft flex h-full items-start">
-      <button className="min-w-0 flex-1 p-3.5 text-left" onClick={() => onOpen(b)}>
-        <p className="font-medium break-words">{b.title}</p>
-        <p className="mt-1.5 flex flex-wrap items-center gap-2">
-          <span className={`badge ${style}`}>{label}</span>
-          {b.size > 0 && <span className="text-muted text-xs">{fmtSize(b.size)}</span>}
-        </p>
+      <button className="flex min-w-0 flex-1 items-start gap-3 p-3 text-left" onClick={() => onOpen(b)}>
+        {b.cover ? (
+          <img src={b.cover} alt="" loading="lazy" className="border-line h-[84px] w-[63px] shrink-0 rounded-md border object-cover shadow-sm" />
+        ) : (
+          <span
+            className={`flex h-[84px] w-[63px] shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${style}`}
+            aria-hidden="true"
+          >
+            {label}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium break-words">{b.title}</span>
+          <span className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className={`badge ${style}`}>{label}</span>
+            {b.size > 0 && <span className="text-muted text-xs">{fmtSize(b.size)}</span>}
+          </span>
+        </span>
       </button>
       {canDelete && (
         <button className="btn-danger mt-2 mr-1 shrink-0" onClick={() => onDelete(b)} aria-label={`Usuń podręcznik: ${b.title}`}>

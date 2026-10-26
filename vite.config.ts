@@ -16,6 +16,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false, // rejestrację robi src/pwa.ts (pasek „nowa wersja”)
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
+      // pdf.js (ok. 1,8 MB z workerem) ładuje się dopiero przy wyborze okładki z PDF-a — poza cache instalacyjnym
+      workbox: { globIgnores: ['**/pdf*'] },
       manifest: {
         name: 'Łomiankowe SGH',
         short_name: 'LOM.SGH',

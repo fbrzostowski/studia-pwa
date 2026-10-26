@@ -13,6 +13,7 @@ import { usePlanEvents } from '../schedule/usePlan'
 export interface FolderRef {
   id: string
   name: string
+  createdBy?: string // autor folderu (usunąć może on albo admin)
 }
 
 interface Entry {

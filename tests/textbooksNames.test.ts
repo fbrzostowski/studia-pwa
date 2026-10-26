@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fileNameFor, findByName, folderPath, norm, storagePathFor, titleOf, validFolderName } from '../functions/src/textbooks'
+import { canDelete, fileNameFor, findByName, folderHasBooks, folderPath, norm, storagePathFor, titleOf, validFolderName } from '../functions/src/textbooks'
 
 describe('validFolderName', () => {
   it('przycina i scala spacje, odrzuca niepoprawne nazwy', () => {
@@ -39,5 +39,33 @@ describe('nazwy plików i ścieżki', () => {
   it('folderPath składa przedmiot i podfolder', () => {
     expect(folderPath('Mathematics', null)).toBe('Mathematics')
     expect(folderPath('Mathematics', 'Prezentacje')).toBe('Mathematics / Prezentacje')
+  })
+})
+
+describe('canDelete: tylko autor albo admin', () => {
+  it('autor i admin mogą, inni nie', () => {
+    expect(canDelete('u1', 'u1', false)).toBe(true)
+    expect(canDelete('u1', 'u2', false)).toBe(false)
+    expect(canDelete('u1', 'u2', true)).toBe(true)
+  })
+  it('wpis bez zapisanego autora (np. starszy) usuwa tylko admin', () => {
+    for (const author of [undefined, null, '', 5]) {
+      expect(canDelete(author, 'u1', false)).toBe(false)
+      expect(canDelete(author, 'u1', true)).toBe(true)
+    }
+  })
+})
+
+describe('folderHasBooks', () => {
+  const folders = ['Mathematics', 'Mathematics / Prezentacje', 'Mikroekonomia']
+  it('widzi pliki w folderze głównym i w podfolderach, ignorując wielkość liter i polskie znaki', () => {
+    expect(folderHasBooks('mathematics', folders)).toBe(true)
+    expect(folderHasBooks('MIKROEKONOMIA', folders)).toBe(true)
+    expect(folderHasBooks('Łódź', ['lodz / skrypty'])).toBe(true)
+  })
+  it('pusty folder i folder o podobnej nazwie nie są mylone z niepustym', () => {
+    expect(folderHasBooks('Prawo', folders)).toBe(false)
+    expect(folderHasBooks('Math', folders)).toBe(false)
+    expect(folderHasBooks('Mathematics', [])).toBe(false)
   })
 })
