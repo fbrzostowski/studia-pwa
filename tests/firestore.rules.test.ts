@@ -246,6 +246,41 @@ describe('textbooks: zapis tylko przez Admin SDK', () => {
   })
 })
 
+describe('plans: udostępnianie planu innym', () => {
+  const plan = (shared?: unknown) => ({ events: [{ name: 'A' }], ...(shared === undefined ? {} : { shared }) })
+
+  it('plan jest prywatny, dopóki właściciel go nie udostępni', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan()))
+    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(false)))
+    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
+  })
+  it('udostępniony plan czytają zatwierdzeni, ale nikt poza właścicielem go nie zmienia', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(true)))
+    await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
+    await assertFails(getDoc(doc(as('pending'), 'plans/alice')))
+    await assertFails(getDoc(doc(as('rejected'), 'plans/alice')))
+    await assertFails(getDoc(doc(anon(), 'plans/alice')))
+    await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan(true)))
+    await assertFails(updateDoc(doc(as('bob'), 'plans/alice'), { shared: false }))
+    await assertFails(deleteDoc(doc(as('bob'), 'plans/alice')))
+    await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
+  })
+  it('wycofanie zgody od razu zamyka dostęp, a scalanie nie gubi flagi', async () => {
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(true)))
+    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), { events: [] }, { merge: true })) // ponowny import
+    await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertSucceeds(updateDoc(doc(as('alice'), 'plans/alice'), { shared: false }))
+    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
+  })
+  it('flaga shared musi być wartością logiczną; cudzy brak planu to odmowa', async () => {
+    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), plan('tak')))
+    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), { shared: true })) // bez events
+    await assertFails(getDoc(doc(as('bob'), 'plans/alice'))) // nie istnieje
+  })
+})
+
 describe('plans: osobisty plan zajęć', () => {
   const plan = (n = 3) => ({ events: Array.from({ length: n }, (_, i) => ({ name: `E${i}`, start: '2026-10-01T08:00' })) })
 

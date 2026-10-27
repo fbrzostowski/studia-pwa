@@ -5,6 +5,8 @@ import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
 import { useClassDocs, useMemberships, useSyncMyPhoto } from '../groups/hooks'
 import Avatar from '../../components/Avatar'
+import Sheet from '../../components/Sheet'
+import { useSharedPlanPeople, type PlanPerson } from './useSharedPlans'
 import { useOpenSubjectPage } from '../subject/SubjectPageContext'
 import ImportPlan from './ImportPlan'
 import { findSubjectForEvent as findSubject } from './match'
@@ -42,7 +44,7 @@ const PAGE_DAYS = 7
 
 export default function PlanPage() {
   const openSubjectPage = useOpenSubjectPage()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { subjects } = useSubjects()
   const memberships = useMemberships()
   useSyncMyPhoto(memberships)
@@ -51,20 +53,26 @@ export default function PlanPage() {
   const [limit, setLimit] = useState(PAGE_DAYS)
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   const [importing, setImporting] = useState(false)
+  const [viewing, setViewing] = useState<PlanPerson | null>(null) // null = mój plan; inaczej plan udostępniony przez tę osobę
+  const [picking, setPicking] = useState(false)
+  const { people } = useSharedPlanPeople()
+  const target = viewing?.uid ?? user!.uid
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(
-    () =>
-      onSnapshot(
-        doc(db, 'plans', user!.uid),
-        (snap) => setPlan(snap.exists() ? (snap.data() as PlanDoc) : null),
-        (e) => {
-          setError(e.message)
-          setPlan(null)
-        },
-      ),
-    [user],
-  )
+  useEffect(() => {
+    setPlan(undefined)
+    setLimit(PAGE_DAYS)
+    setError(null)
+    return onSnapshot(
+      doc(db, 'plans', target),
+      (snap) => setPlan(snap.exists() ? (snap.data() as PlanDoc) : null),
+      (e) => {
+        // cudzy plan, którego właściciel nie udostępnia (albo już wycofał zgodę)
+        setError(viewing ? `${viewing.username} nie udostępnia planu.` : e.message)
+        setPlan(null)
+      },
+    )
+  }, [target]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // „Teraz” i wyszarzanie minionych zajęć odświeżają się co minutę.
   useEffect(() => {
@@ -93,15 +101,82 @@ export default function PlanPage() {
     await deleteDoc(doc(db, 'plans', user!.uid)).catch((e) => setError(e.message))
   }
 
+  const switcher = (people.length > 0 || viewing) && (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <button
+        className="border-line bg-surface hover:bg-accent-soft flex items-center gap-2 rounded-full border py-1 pr-3 pl-1.5 text-sm font-medium"
+        onClick={() => setPicking(true)}
+        aria-haspopup="dialog"
+      >
+        <Avatar
+          name={viewing?.username ?? profile?.username ?? 'Ty'}
+          photoURL={viewing ? viewing.photoURL : profile?.photoURL}
+          size={24}
+        />
+        {viewing ? `Plan: ${viewing.username}` : 'Mój plan'}
+        <svg viewBox="0 0 24 24" className="text-muted h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {viewing && <span className="text-muted text-xs">tylko do odczytu</span>}
+    </div>
+  )
+  const picker = (
+    <Sheet open={picking} title="Zobacz plan" onClose={() => setPicking(false)}>
+      <ul className="space-y-1">
+        {[null, ...people].map((p) => {
+          const active = (p?.uid ?? null) === (viewing?.uid ?? null)
+          return (
+            <li key={p?.uid ?? 'me'}>
+              <button
+                className="hover:bg-accent-soft aria-[current=true]:bg-accent-soft flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
+                aria-current={active}
+                onClick={() => {
+                  setViewing(p)
+                  setPicking(false)
+                }}
+              >
+                <Avatar
+                  name={p?.username ?? profile?.username ?? 'Ty'}
+                  photoURL={p ? p.photoURL : profile?.photoURL}
+                  size={36}
+                />
+                <span className="min-w-0 flex-1 font-medium break-words">{p ? p.username : 'Mój plan'}</span>
+                {active && <span className="text-accent text-sm">✓</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="text-muted mt-3 text-xs">
+        Widać tylko osoby, które udostępniły plan (Ustawienia → Prywatność). Plan innej osoby jest tylko do odczytu.
+      </p>
+    </Sheet>
+  )
+
   if (plan === undefined) return <p className="text-muted">Ładowanie…</p>
 
   if (importing) {
     return <ImportPlan subjects={subjects} onDone={() => setImporting(false)} />
   }
 
+  if (!plan && viewing) {
+    return (
+      <div>
+        {switcher}
+        {picker}
+        <p className="border-line text-muted rounded-2xl border border-dashed p-8 text-center text-sm">
+          {error ?? `${viewing.username} nie ma jeszcze zaimportowanego planu.`}
+        </p>
+      </div>
+    )
+  }
+
   if (!plan) {
     return (
       <div>
+        {switcher}
+        {picker}
         {error && <p className="text-danger mb-3 text-sm">{error}</p>}
         <div className="border-line rounded-2xl border border-dashed p-8 text-center">
           <h2 className="text-lg font-semibold">Brak planu zajęć</h2>
@@ -118,6 +193,8 @@ export default function PlanPage() {
 
   return (
     <div>
+      {switcher}
+      {picker}
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
       {visible.length === 0 && (
@@ -151,7 +228,7 @@ export default function PlanPage() {
                           .filter(
                             (m) =>
                               m.subjectId === subject.id &&
-                              m.uid !== user!.uid &&
+                              m.uid !== target &&
                               (m.classes ?? []).some((c) => c.form === e.form && normGroup(c.group) === normGroup(e.group)),
                           )
                           .map((m) => ({ name: m.username, photoURL: m.photoURL }))
@@ -221,20 +298,27 @@ export default function PlanPage() {
         </button>
       )}
 
-      <div className="border-line mt-8 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-        <p className="text-muted text-xs">
-          Plan z pliku {plan.fileName ?? '.ics'}
+      {viewing ? (
+        <p className="border-line text-muted mt-8 border-t pt-4 text-xs">
+          Plan użytkownika {viewing.username} (tylko do odczytu)
           {plan.importedAt && `, zaimportowany ${plan.importedAt.toDate().toLocaleDateString('pl-PL')}`}
         </p>
-        <div className="flex gap-1">
-          <button className="btn-secondary" onClick={() => setImporting(true)}>
-            Zaktualizuj plan
-          </button>
-          <button className="btn-danger" onClick={removePlan}>
-            Usuń plan
-          </button>
+      ) : (
+        <div className="border-line mt-8 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+          <p className="text-muted text-xs">
+            Plan z pliku {plan.fileName ?? '.ics'}
+            {plan.importedAt && `, zaimportowany ${plan.importedAt.toDate().toLocaleDateString('pl-PL')}`}
+          </p>
+          <div className="flex gap-1">
+            <button className="btn-secondary" onClick={() => setImporting(true)}>
+              Zaktualizuj plan
+            </button>
+            <button className="btn-danger" onClick={removePlan}>
+              Usuń plan
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
