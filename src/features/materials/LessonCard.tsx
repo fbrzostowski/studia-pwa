@@ -6,6 +6,7 @@ import { normGroup, type IcsEvent } from '../schedule/parseIcs'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
 import { TYPE_LABEL, TYPE_STYLE, type Material, type Subject } from './types'
+import { SubjectLink } from '../subject/SubjectPageContext'
 
 export const FORM_STYLE: Record<string, string> = {
   WYK: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300',
@@ -136,7 +137,9 @@ export default function LessonCard({
           <p className="text-muted">{e.end.slice(11)}</p>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-medium break-words">{e.name}</p>
+          <p className="font-medium break-words">
+            <SubjectLink id={subject?.id}>{e.name}</SubjectLink>
+          </p>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${FORM_STYLE[e.form] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300'}`}>
               {e.form}

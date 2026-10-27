@@ -6,6 +6,7 @@ import { useAuth } from '../../firebase/AuthContext'
 import type { ExamSection } from './logic'
 import { defaultListName, itemsFromMaterials, progress, syncWithMaterials, type TodoItem, type TodoList } from './todo'
 import { fetchMaterials, useTodoLists } from './useTodoLists'
+import { SubjectLink } from '../subject/SubjectPageContext'
 
 type Section = Pick<ExamSection, 'key' | 'name' | 'subjects'>
 
@@ -139,7 +140,11 @@ function TodoCard({ list, subjectIds, subjectName }: { list: TodoList; subjectId
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="font-semibold break-words">{list.name}</h4>
-          {subjectName && <p className="text-muted text-xs">{subjectName}</p>}
+          {subjectName && (
+            <p className="text-muted text-xs">
+              <SubjectLink id={list.subjectId}>{subjectName}</SubjectLink>
+            </p>
+          )}
         </div>
         <span className={`badge shrink-0 ${percent === 100 && total > 0 ? 'bg-emerald-600 text-white' : 'bg-accent-soft text-accent'}`}>
           {done}/{total}

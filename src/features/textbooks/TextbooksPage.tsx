@@ -16,6 +16,7 @@ import { usePlanEvents } from '../schedule/usePlan'
 import { toLocalIso } from '../schedule/weeks'
 import { groupTextbooks, norm, subFolder, topFolder } from './group'
 import SubjectIcon from '../../components/SubjectIcon'
+import { SubjectShortcut, useOpenSubjectPage } from '../subject/SubjectPageContext'
 
 interface Textbook {
   id: string
@@ -94,9 +95,16 @@ export default function TextbooksPage() {
 
   const { subjects } = useSubjects()
   // Folder to nazwa przedmiotu (wspólna dla jego form zajęć), więc bierzemy pierwszą ustawioną emotkę z przedmiotów o tej nazwie.
+  const openSubjectPage = useOpenSubjectPage()
   const emojiOf = useMemo(() => {
     const m = new Map<string, string>()
     for (const s of subjects) if (s.emoji && !m.has(norm(s.name))) m.set(norm(s.name), s.emoji)
+    return (name: string) => m.get(norm(name))
+  }, [subjects])
+  // Folder nie ma własnego id: strona przedmiotu otwiera się dla pierwszego przedmiotu o tej nazwie.
+  const subjectIdOf = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of subjects) if (!m.has(norm(s.name))) m.set(norm(s.name), s.id)
     return (name: string) => m.get(norm(name))
   }, [subjects])
   const events = usePlanEvents()
@@ -329,6 +337,11 @@ export default function TextbooksPage() {
                 {k}
               </span>
             ))}
+            {openTile.type === 'subject' && subjectIdOf(openTile.name) && (
+              <button className="btn-ghost" onClick={() => openSubjectPage(subjectIdOf(openTile.name)!)}>
+                Strona przedmiotu
+              </button>
+            )}
           </div>
           <p className="text-muted mt-1 text-sm">
             {openTile.books.length === 0
@@ -412,7 +425,7 @@ export default function TextbooksPage() {
             tiles.length > 0 && (
               <ul className="mt-5 grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
                 {shownTiles.map((t) => (
-                  <li key={t.key}>
+                  <li key={t.key} className="relative">
                     <button
                       className={`card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left ${t.live ? 'ring-accent bg-accent-soft ring-2' : ''}`}
                       onClick={() => (t.missing ? setAdding({ mode: 'folder', name: t.name }) : setOpenKey(t.key))}
@@ -429,7 +442,7 @@ export default function TextbooksPage() {
                           {t.live.room ? ` · sala ${t.live.room}` : ''}
                         </span>
                       )}
-                      <span className="text-muted mt-auto flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="text-muted mt-auto flex flex-wrap items-center gap-1.5 pr-8 text-xs">
                         {t.missing
                           ? 'Brak folderu — dotknij, aby utworzyć'
                           : t.books.length === 0
@@ -440,6 +453,7 @@ export default function TextbooksPage() {
                         )}
                       </span>
                     </button>
+                    {t.type === 'subject' && <SubjectShortcut id={subjectIdOf(t.name)} name={t.name} />}
                   </li>
                 ))}
               </ul>

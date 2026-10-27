@@ -13,6 +13,7 @@ import { findSubjectForEvent } from '../schedule/match'
 import type { IcsEvent } from '../schedule/parseIcs'
 import { usePlanEvents } from '../schedule/usePlan'
 import { addDays, fromDateKey, monthWeeks, startOfWeek, toDateKey, weekKeys } from '../schedule/weeks'
+import { SubjectLink } from '../subject/SubjectPageContext'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -111,7 +112,9 @@ export default function CalendarView({ onOpenSubject }: { onOpenSubject: (id: st
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2">
                 <span className={`badge ${EXAM_STYLE[x.type]}`}>{EXAM_LABEL[x.type]}</span>
-                <span className="font-medium break-words">{subjectName.get(x.subjectId)}</span>
+                <SubjectLink id={x.subjectId} className="font-medium break-words">
+                  {subjectName.get(x.subjectId)}
+                </SubjectLink>
               </p>
               <p className="text-muted mt-1 text-xs">
                 {[x.time, x.room && `sala ${x.room}`].filter(Boolean).join(' · ') || 'Cały dzień'}

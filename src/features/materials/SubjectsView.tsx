@@ -6,6 +6,7 @@ import { useAuth } from '../../firebase/AuthContext'
 import SubjectIcon from '../../components/SubjectIcon'
 import EmojiPicker from '../../components/EmojiPicker'
 import { useLiveSubjects } from '../schedule/useLive'
+import { SubjectShortcut, useOpenSubjectPage } from '../subject/SubjectPageContext'
 import { plural } from '../../lib/plural'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
@@ -23,6 +24,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
   const [pickingEmoji, setPickingEmoji] = useState(false)
+  const openSubjectPage = useOpenSubjectPage()
   const [localError, setError] = useState<string | null>(null)
   const error = localError ?? subjectsError
 
@@ -88,7 +90,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
                 const n = counts.get(s.id) ?? 0
                 const l = live.get(s.id)
                 return (
-                  <li key={s.id}>
+                  <li key={s.id} className="relative">
                     <button
                       className={`card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left ${l ? 'ring-accent bg-accent-soft ring-2' : ''}`}
                       aria-label={l ? `${s.name} — trwa teraz` : undefined}
@@ -116,10 +118,11 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
                           {l.room ? ` · sala ${l.room}` : ''}
                         </span>
                       )}
-                      <span className="text-muted mt-auto text-xs">
+                      <span className="text-muted mt-auto pr-8 text-xs">
                         {n === 0 ? 'Brak materiałów' : `${n} ${plural(n, 'materiał', 'materiały', 'materiałów')}`}
                       </span>
                     </button>
+                    <SubjectShortcut id={s.id} name={s.name} />
                   </li>
                 )
               })}
@@ -167,7 +170,10 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
                 </span>
               )}
             </h2>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
+              <button className="btn-secondary" onClick={() => openSubjectPage(current.id)}>
+                Strona przedmiotu
+              </button>
               {canEdit(current.createdBy) && (
                 <button className="btn-danger" onClick={() => removeSubject(current)}>
                   Usuń przedmiot

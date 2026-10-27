@@ -5,6 +5,7 @@ import { useAuth } from '../../firebase/AuthContext'
 import { fromDateKey } from '../schedule/weeks'
 import { countdown, daysUntil } from './logic'
 import { EXAM_LABEL, EXAM_STYLE, type Exam } from './types'
+import { SubjectLink } from '../subject/SubjectPageContext'
 
 export const fmtDate = (k: string) =>
   fromDateKey(k).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -34,7 +35,11 @@ export default function ExamRow({
     <div className="border-line rounded-xl border p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {subjectName && <p className="mb-1 font-medium break-words">{subjectName}</p>}
+          {subjectName && (
+            <p className="mb-1 font-medium break-words">
+              <SubjectLink id={e.subjectId}>{subjectName}</SubjectLink>
+            </p>
+          )}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${EXAM_STYLE[e.type]}`}>{EXAM_LABEL[e.type]}</span>
             <span className="text-sm font-medium">

@@ -7,10 +7,11 @@ import { plural } from '../../lib/plural'
 import SubjectGroups from '../groups/SubjectGroups'
 import { useClassDocs, useMemberships } from '../groups/hooks'
 import { KIND_LABEL, type Subject } from '../materials/types'
-import { setSubjectEmoji } from '../materials/useSubjects'
+import { setSubjectEmoji, useSubjects } from '../materials/useSubjects'
 import { academicHours, fmtHours, summarizeHours } from '../schedule/hours'
 import { findSubjectForEvent } from '../schedule/match'
 import { classKey, normGroup, summarizeClasses, type IcsEvent } from '../schedule/parseIcs'
+import { usePlanEvents } from '../schedule/usePlan'
 import { useLiveSubjects } from '../schedule/useLive'
 import { fromDateKey, toLocalIso } from '../schedule/weeks'
 
@@ -20,10 +21,44 @@ const day = (key: string, long = false) =>
   fromDateKey(key).toLocaleDateString('pl-PL', long ? { weekday: 'long', day: 'numeric', month: 'long' } : { day: 'numeric', month: 'short' })
 
 /**
- * Strona przedmiotu otwierana z planu: ikona (zmienialna), godziny w semestrze z planu,
- * najbliższe zajęcia, kto jeszcze jest w Twoich grupach oraz skrót do materiałów.
+ * Strona przedmiotu: ikona (zmienialna), godziny w semestrze z planu, najbliższe zajęcia,
+ * kto jeszcze jest w Twoich grupach oraz skrót do materiałów. Otwiera się z każdego miejsca z przedmiotem.
  */
 export default function SubjectPage({
+  subjectId,
+  onBack,
+  onOpenMaterials,
+}: {
+  subjectId: string
+  onBack: () => void
+  onOpenMaterials: () => void
+}) {
+  const { subjects } = useSubjects()
+  const subject = subjects.find((s) => s.id === subjectId)
+  const events = usePlanEvents()
+  if (!subject) {
+    return (
+      <div>
+        <BackButton onBack={onBack} />
+        <p className="text-muted mt-4 text-sm">{subjects.length === 0 ? 'Ładowanie…' : 'Ten przedmiot już nie istnieje.'}</p>
+      </div>
+    )
+  }
+  return <Page subject={subject} events={events ?? []} onBack={onBack} onOpenMaterials={onOpenMaterials} />
+}
+
+function BackButton({ onBack }: { onBack: () => void }) {
+  return (
+    <button className="btn-ghost -ml-3 gap-1" onClick={onBack}>
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      Wstecz
+    </button>
+  )
+}
+
+function Page({
   subject,
   events,
   onBack,
@@ -57,12 +92,7 @@ export default function SubjectPage({
 
   return (
     <div>
-      <button className="btn-ghost -ml-3 gap-1" onClick={onBack}>
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        Plan
-      </button>
+      <BackButton onBack={onBack} />
 
       {error && <p className="text-danger mt-2 text-sm">{error}</p>}
 

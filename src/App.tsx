@@ -11,6 +11,8 @@ import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
+import SubjectPage from './features/subject/SubjectPage'
+import { SubjectPageProvider } from './features/subject/SubjectPageContext'
 
 const logo = `${import.meta.env.BASE_URL}favicon.svg`
 
@@ -108,13 +110,13 @@ function Panel() {
   const [tab, setTab] = useState<Tab>('plan')
   const [settings, setSettings] = useState(false)
   const [focusSubject, setFocusSubject] = useState<string | null>(null)
-  const [planKey, setPlanKey] = useState(0) // zmiana klucza zamyka stronę przedmiotu otwartą w Planie
+  const [subjectId, setSubjectId] = useState<string | null>(null) // otwarta strona przedmiotu (nad bieżącą zakładką)
   const isAdmin = profile!.role === 'admin'
   const pending = usePendingCount(isAdmin)
   const initial = shownName(profile!).charAt(0).toUpperCase()
   const go = (t: Tab) => {
     setFocusSubject(null)
-    if (t === 'plan') setPlanKey((k) => k + 1)
+    setSubjectId(null)
     setTab(t)
     setSettings(false)
   }
@@ -178,23 +180,38 @@ function Panel() {
 
       <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-8">
         <InstallHint />
-        {settings ? (
-          <SettingsPage />
-        ) : tab === 'plan' ? (
-          <PlanPage
-            key={planKey}
-            onOpenSubject={(id) => {
-              setFocusSubject(id)
-              setTab('materials')
-            }}
-          />
-        ) : tab === 'textbooks' ? (
-          <TextbooksPage />
-        ) : tab === 'exams' ? (
-          <ExamsPage />
-        ) : (
-          <MaterialsPage key={focusSubject ?? 'none'} initialSubjectId={focusSubject} />
-        )}
+        <SubjectPageProvider
+          value={(id) => {
+            setSettings(false)
+            setSubjectId(id)
+          }}
+        >
+          {subjectId && !settings && (
+            <SubjectPage
+              subjectId={subjectId}
+              onBack={() => setSubjectId(null)}
+              onOpenMaterials={() => {
+                setFocusSubject(subjectId)
+                setSubjectId(null)
+                setTab('materials')
+              }}
+            />
+          )}
+          {/* Zakładka zostaje zamontowana pod stroną przedmiotu, żeby po powrocie miała ten sam stan (otwarty folder, miesiąc). */}
+          <div hidden={!!subjectId && !settings}>
+            {settings ? (
+              <SettingsPage />
+            ) : tab === 'plan' ? (
+              <PlanPage />
+            ) : tab === 'textbooks' ? (
+              <TextbooksPage />
+            ) : tab === 'exams' ? (
+              <ExamsPage />
+            ) : (
+              <MaterialsPage key={focusSubject ?? 'none'} initialSubjectId={focusSubject} />
+            )}
+          </div>
+        </SubjectPageProvider>
       </main>
 
       <nav
