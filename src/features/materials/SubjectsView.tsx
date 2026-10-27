@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore'
+import { useEffect, useMemo, useState } from 'react'
+import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
+import FolderIcon from '../../components/FolderIcon'
+import { plural } from '../../lib/plural'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
 import { useSubjects } from './useSubjects'
@@ -15,25 +17,32 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   const isAdmin = profile?.role === 'admin'
   const { subjects, error: subjectsError } = useSubjects()
   const [selected, setSelected] = useState<string | null>(initialSubjectId)
-  const [materials, setMaterials] = useState<Material[]>([])
+  const [allMaterials, setAllMaterials] = useState<Material[]>([])
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
   const [localError, setError] = useState<string | null>(null)
   const error = localError ?? subjectsError
 
-  useEffect(() => {
-    if (!selected) return
-    return onSnapshot(
-      query(collection(db, 'materials'), where('subjectId', '==', selected)),
-      (snap) =>
-        setMaterials(
-          snap.docs
-            .map((d) => ({ id: d.id, ...(d.data() as Omit<Material, 'id'>) }))
-            .sort((a, b) => (b.createdAt?.toMillis() ?? Infinity) - (a.createdAt?.toMillis() ?? Infinity)),
-        ),
-      (e) => setError(e.message),
-    )
-  }, [selected])
+  useEffect(
+    () =>
+      onSnapshot(
+        collection(db, 'materials'),
+        (snap) =>
+          setAllMaterials(
+            snap.docs
+              .map((d) => ({ id: d.id, ...(d.data() as Omit<Material, 'id'>) }))
+              .sort((a, b) => (b.createdAt?.toMillis() ?? Infinity) - (a.createdAt?.toMillis() ?? Infinity)),
+          ),
+        (e) => setError(e.message),
+      ),
+    [],
+  )
+  const materials = useMemo(() => allMaterials.filter((m) => m.subjectId === selected), [allMaterials, selected])
+  const counts = useMemo(() => {
+    const c = new Map<string, number>()
+    for (const m of allMaterials) c.set(m.subjectId, (c.get(m.subjectId) ?? 0) + 1)
+    return c
+  }, [allMaterials])
 
   const canEdit = (ownerId: string) => isAdmin || ownerId === user!.uid
 
@@ -49,48 +58,68 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Przedmioty</h2>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {subjects.map((s) => (
-          <li key={s.id}>
-            <button
-              className="chip"
-              aria-pressed={selected === s.id}
-              onClick={() => {
-                setSelected(s.id)
-                setAdding(false)
-              }}
-            >
-              {s.name}
-              {s.kind && <span className="ml-1.5 text-xs font-semibold opacity-70">{s.kind}</span>}
+      {!current && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold tracking-tight">Przedmioty</h2>
+            <button className="btn-secondary" onClick={() => setAddingSubject(true)}>
+              + Przedmiot
             </button>
-          </li>
-        ))}
-        <li>
-          <button
-            className="chip border-dashed text-accent"
-            onClick={() => setAddingSubject((v) => !v)}
-            aria-expanded={addingSubject}
-          >
-            + Przedmiot
-          </button>
-        </li>
-      </ul>
+          </div>
+
+          {subjects.length === 0 ? (
+            <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
+              Brak przedmiotów — dodaj pierwszy.
+            </p>
+          ) : (
+            <ul className="mt-4 grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
+              {subjects.map((s) => {
+                const n = counts.get(s.id) ?? 0
+                return (
+                  <li key={s.id}>
+                    <button
+                      className="card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left"
+                      onClick={() => {
+                        setSelected(s.id)
+                        setAdding(false)
+                      }}
+                    >
+                      <span className="flex w-full items-start justify-between gap-2">
+                        <FolderIcon className="text-accent h-9 w-9" />
+                        {s.kind && (
+                          <span className="badge bg-accent-soft text-accent shrink-0" title={KIND_LABEL[s.kind]}>
+                            {s.kind}
+                          </span>
+                        )}
+                      </span>
+                      <span className="line-clamp-3 font-semibold break-words">{s.name}</span>
+                      <span className="text-muted mt-auto text-xs">
+                        {n === 0 ? 'Brak materiałów' : `${n} ${plural(n, 'materiał', 'materiały', 'materiałów')}`}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
 
       <Sheet open={addingSubject} title="Nowy przedmiot" onClose={() => setAddingSubject(false)}>
         {addingSubject && <AddSubjectForm onDone={() => setAddingSubject(false)} />}
       </Sheet>
 
-      {!current && (
-        <p className="border-line text-muted mt-6 rounded-2xl border border-dashed p-8 text-center text-sm">
-          {subjects.length === 0 ? 'Brak przedmiotów — dodaj pierwszy.' : 'Wybierz przedmiot, żeby zobaczyć materiały.'}
-        </p>
-      )}
-
       {current && (
-        <section className="mt-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">
+        <section>
+          <button className="btn-ghost -ml-3 gap-1" onClick={() => setSelected(null)}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Przedmioty
+          </button>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight break-words">
+              <FolderIcon className="text-accent h-7 w-7 shrink-0" />
               {current.name}
               {current.kind && (
                 <span className="badge bg-accent-soft text-accent ml-2 align-middle" title={KIND_LABEL[current.kind]}>

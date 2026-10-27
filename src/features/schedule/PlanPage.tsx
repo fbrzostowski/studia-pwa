@@ -3,7 +3,8 @@ import { deleteDoc, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
-import { useClassDocs, useMemberships } from '../groups/hooks'
+import { useClassDocs, useMemberships, useSyncMyPhoto } from '../groups/hooks'
+import Avatar from '../../components/Avatar'
 import ImportPlan from './ImportPlan'
 import { findSubjectForEvent as findSubject } from './match'
 import { classKey, normGroup, type IcsEvent } from './parseIcs'
@@ -42,6 +43,7 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
   const { user } = useAuth()
   const { subjects } = useSubjects()
   const memberships = useMemberships()
+  useSyncMyPhoto(memberships)
   const classDocs = useClassDocs()
   const [plan, setPlan] = useState<PlanDoc | null | undefined>(undefined) // undefined = ładowanie
   const [limit, setLimit] = useState(PAGE_DAYS)
@@ -150,7 +152,7 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                               m.uid !== user!.uid &&
                               (m.classes ?? []).some((c) => c.form === e.form && normGroup(c.group) === normGroup(e.group)),
                           )
-                          .map((m) => m.username)
+                          .map((m) => ({ name: m.username, photoURL: m.photoURL }))
                       : []
                     const lecturer = subject ? classDocs[classKey(subject.id, e.form, e.group)]?.lecturer : undefined
                     const ongoing = e.start <= now && now < e.end
@@ -171,9 +173,17 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                           </p>
                           {lecturer && <p className="text-muted mt-1 text-xs">{lecturer}</p>}
                           {together.length > 0 && (
-                            <p className="text-muted mt-1 text-xs">
-                              Razem: {together.slice(0, 4).join(', ')}
-                              {together.length > 4 && ` +${together.length - 4}`}
+                            <p
+                              className="mt-1.5 flex items-center"
+                              title={`Razem: ${together.map((t) => t.name).join(', ')}`}
+                              aria-label={`Razem: ${together.map((t) => t.name).join(', ')}`}
+                            >
+                              <span className="flex -space-x-1.5">
+                                {together.slice(0, 5).map((t) => (
+                                  <Avatar key={t.name} name={t.name} photoURL={t.photoURL} size={24} className="ring-surface ring-2" />
+                                ))}
+                              </span>
+                              {together.length > 5 && <span className="text-muted ml-2 text-xs">+{together.length - 5}</span>}
                             </p>
                           )}
                         </div>

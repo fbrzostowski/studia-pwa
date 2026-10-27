@@ -267,6 +267,15 @@ describe('memberships: kto należy do przedmiotu', () => {
     await assertSucceeds(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { classes: [] })))
     await assertSucceeds(deleteDoc(doc(as('bob'), 'memberships/s1_bob')))
   })
+  it('zdjęcie w członkostwie: tylko własne zdjęcie z profilu (inni nie widzą users)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/bob'), { ...profile('user', 'approved'), photoURL: 'https://img.example/bob.jpg' })
+    })
+    await assertSucceeds(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob')))
+    await assertSucceeds(updateDoc(doc(as('bob'), 'memberships/s1_bob'), { photoURL: 'https://img.example/bob.jpg' }))
+    await assertFails(updateDoc(doc(as('bob'), 'memberships/s1_bob'), { photoURL: 'https://img.example/ktos-inny.jpg' }))
+    await assertFails(setDoc(doc(as('bob'), 'memberships/s1_bob'), m('bob', { photoURL: 'https://evil.example/x.jpg' })))
+  })
   it('twórca przedmiotu zapisuje przedmiot i członkostwo w jednej paczce (existsAfter)', async () => {
     const db = as('bob')
     const batch = writeBatch(db)

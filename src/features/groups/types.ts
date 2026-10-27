@@ -7,6 +7,7 @@ export interface Membership {
   uid: string
   subjectId: string
   username: string
+  photoURL?: string // kopia zdjęcia profilu (users są prywatne); dopisuje ją useSyncMyPhoto
   classes: ClassInfo[]
   updatedAt?: Timestamp
 }

@@ -107,10 +107,12 @@ service cloud.firestore {
     match /memberships/{id} {
       allow read: if isApproved();
       allow create, update: if isApproved()
-                            && request.resource.data.keys().hasOnly(['uid', 'subjectId', 'username', 'classes', 'updatedAt'])
+                            && request.resource.data.keys().hasOnly(['uid', 'subjectId', 'username', 'photoURL', 'classes', 'updatedAt'])
                             && request.resource.data.uid == request.auth.uid
                             && id == request.resource.data.subjectId + '_' + request.auth.uid
                             && request.resource.data.username == memberName()
+                            // zdjęcie tylko własne (kopia z profilu), żeby inni widzieli miniaturkę bez dostępu do users
+                            && (!('photoURL' in request.resource.data) || request.resource.data.photoURL == me().get('photoURL', ''))
                             && request.resource.data.classes is list
                             && request.resource.data.classes.size() <= 20
                             && existsAfter(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId));
