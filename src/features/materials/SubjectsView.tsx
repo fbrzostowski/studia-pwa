@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, deleteDoc, deleteField, doc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
@@ -9,7 +9,7 @@ import { useLiveSubjects } from '../schedule/useLive'
 import { plural } from '../../lib/plural'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
-import { useSubjects } from './useSubjects'
+import { setSubjectEmoji, useSubjects } from './useSubjects'
 import SubjectGroups from '../groups/SubjectGroups'
 import AddSubjectForm from './AddSubjectForm'
 import { KIND_LABEL, type Material, type Subject } from './types'
@@ -62,7 +62,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
 
   const setEmoji = async (s: Subject, emoji: string | null) => {
     setPickingEmoji(false)
-    await updateDoc(doc(db, 'subjects', s.id), { emoji: emoji ?? deleteField() }).catch((e) => setError(e.message))
+    await setSubjectEmoji(s.id, emoji).catch((e) => setError(e.message))
   }
 
   return (

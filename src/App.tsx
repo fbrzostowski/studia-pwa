@@ -108,11 +108,13 @@ function Panel() {
   const [tab, setTab] = useState<Tab>('plan')
   const [settings, setSettings] = useState(false)
   const [focusSubject, setFocusSubject] = useState<string | null>(null)
+  const [planKey, setPlanKey] = useState(0) // zmiana klucza zamyka stronę przedmiotu otwartą w Planie
   const isAdmin = profile!.role === 'admin'
   const pending = usePendingCount(isAdmin)
   const initial = shownName(profile!).charAt(0).toUpperCase()
   const go = (t: Tab) => {
     setFocusSubject(null)
+    if (t === 'plan') setPlanKey((k) => k + 1)
     setTab(t)
     setSettings(false)
   }
@@ -180,6 +182,7 @@ function Panel() {
           <SettingsPage />
         ) : tab === 'plan' ? (
           <PlanPage
+            key={planKey}
             onOpenSubject={(id) => {
               setFocusSubject(id)
               setTab('materials')

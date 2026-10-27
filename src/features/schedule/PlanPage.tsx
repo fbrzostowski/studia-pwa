@@ -5,6 +5,7 @@ import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
 import { useClassDocs, useMemberships, useSyncMyPhoto } from '../groups/hooks'
 import Avatar from '../../components/Avatar'
+import SubjectPage from '../subject/SubjectPage'
 import ImportPlan from './ImportPlan'
 import { findSubjectForEvent as findSubject } from './match'
 import { classKey, normGroup, type IcsEvent } from './parseIcs'
@@ -49,6 +50,7 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
   const [limit, setLimit] = useState(PAGE_DAYS)
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   const [importing, setImporting] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null) // strona przedmiotu otwartego z planu
   const [error, setError] = useState<string | null>(null)
 
   useEffect(
@@ -95,6 +97,18 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
 
   if (importing) {
     return <ImportPlan subjects={subjects} onDone={() => setImporting(false)} />
+  }
+
+  const openSubject = openId ? subjects.find((s) => s.id === openId) : undefined
+  if (plan && openSubject) {
+    return (
+      <SubjectPage
+        subject={openSubject}
+        events={plan.events}
+        onBack={() => setOpenId(null)}
+        onOpenMaterials={() => onOpenSubject(openSubject.id)}
+      />
+    )
   }
 
   if (!plan) {
@@ -197,7 +211,7 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                     return (
                       <li key={`${e.start}-${e.code}-${e.form}-${i}`}>
                         {subject ? (
-                          <button className={`${cls} hover:bg-accent-soft`} onClick={() => onOpenSubject(subject.id)}>
+                          <button className={`${cls} hover:bg-accent-soft`} onClick={() => setOpenId(subject.id)}>
                             {body}
                           </button>
                         ) : (

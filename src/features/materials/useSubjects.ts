@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { collection, deleteField, doc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { SUBJECT_KINDS, type Subject } from './types'
 
@@ -29,3 +29,7 @@ export function useSubjects() {
 
   return { subjects, error }
 }
+
+/** Ustawia (albo, dla null, usuwa) wspólną emotkę przedmiotu; reguły pozwalają na to każdemu zatwierdzonemu. */
+export const setSubjectEmoji = (subjectId: string, emoji: string | null) =>
+  updateDoc(doc(db, 'subjects', subjectId), { emoji: emoji ?? deleteField() })
