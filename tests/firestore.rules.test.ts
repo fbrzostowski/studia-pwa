@@ -212,6 +212,31 @@ describe('własność treści', () => {
   })
 })
 
+describe('subjects: emotka przedmiotu', () => {
+  it('każdy zatwierdzony ustawia i usuwa emotkę cudzego przedmiotu, ale nic poza nią', async () => {
+    const ref = (who: string) => doc(as(who), 'subjects/s1') // s1 założyła alice
+    await assertSucceeds(updateDoc(ref('bob'), { emoji: '📚' }))
+    await assertSucceeds(updateDoc(ref('bob'), { emoji: '🇪🇸' }))
+    await assertSucceeds(updateDoc(ref('bob'), { emoji: deleteField() }))
+    await assertFails(updateDoc(ref('bob'), { emoji: '📚', name: 'Hack' }))
+    await assertFails(updateDoc(ref('bob'), { emoji: '📚', kind: 'CW' }))
+    await assertFails(updateDoc(ref('bob'), { emoji: '📚', createdBy: 'bob' }))
+  })
+  it('emotka musi być krótkim, niepustym tekstem', async () => {
+    const ref = doc(as('bob'), 'subjects/s1')
+    await assertFails(updateDoc(ref, { emoji: '' }))
+    await assertFails(updateDoc(ref, { emoji: 5 }))
+    await assertFails(updateDoc(ref, { emoji: 'x'.repeat(40) }))
+    await assertFails(setDoc(doc(as('bob'), 'subjects/s9'), { name: 'N', kind: 'WYK', createdBy: 'bob', emoji: '' }))
+    await assertSucceeds(setDoc(doc(as('bob'), 'subjects/s9'), { name: 'N', kind: 'WYK', createdBy: 'bob', emoji: '🧮' }))
+  })
+  it('oczekujący, odrzucony i niezalogowany nie ustawiają emotki', async () => {
+    await assertFails(updateDoc(doc(as('pending'), 'subjects/s1'), { emoji: '📚' }))
+    await assertFails(updateDoc(doc(as('rejected'), 'subjects/s1'), { emoji: '📚' }))
+    await assertFails(updateDoc(doc(anon(), 'subjects/s1'), { emoji: '📚' }))
+  })
+})
+
 describe('textbooks: zapis tylko przez Admin SDK', () => {
   it('nikt, nawet admin, nie zapisuje z klienta', async () => {
     await assertFails(setDoc(doc(as('admin'), 'textbooks/t2'), { title: 'X' }))

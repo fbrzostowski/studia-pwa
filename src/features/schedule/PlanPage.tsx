@@ -164,7 +164,10 @@ export default function PlanPage({ onOpenSubject }: { onOpenSubject: (id: string
                           <p className="text-muted">{e.end.slice(11)}</p>
                         </div>
                         <div className="min-w-0 flex-1 text-left">
-                          <p className="font-medium break-words">{e.name}</p>
+                          <p className="font-medium break-words">
+                            {subject?.emoji && <span aria-hidden="true" className="mr-1.5">{subject.emoji}</span>}
+                            {e.name}
+                          </p>
                           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className={`badge ${FORM_STYLE[e.form] ?? FORM_FALLBACK}`}>{e.form}</span>
                             {e.room && <span className="text-muted text-xs">Sala {e.room}</span>}

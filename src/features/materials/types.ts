@@ -17,6 +17,7 @@ export interface Subject {
   name: string
   kind: SubjectKind
   usosCode?: string // Sygnatura z USOS (import planu), do wykrywania duplikatów
+  emoji?: string // wspólna ikona przedmiotu zamiast folderu
   createdBy: string
 }
 

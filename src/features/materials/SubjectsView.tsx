@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
-import FolderIcon from '../../components/FolderIcon'
+import SubjectIcon from '../../components/SubjectIcon'
+import EmojiPicker from '../../components/EmojiPicker'
+import { useLiveSubjects } from '../schedule/useLive'
 import { plural } from '../../lib/plural'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
@@ -20,6 +22,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   const [allMaterials, setAllMaterials] = useState<Material[]>([])
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
+  const [pickingEmoji, setPickingEmoji] = useState(false)
   const [localError, setError] = useState<string | null>(null)
   const error = localError ?? subjectsError
 
@@ -53,6 +56,14 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   }
 
   const current = subjects.find((s) => s.id === selected)
+  const live = useLiveSubjects(subjects)
+  // Przedmiot trwającej lekcji jest pierwszy; sort jest stabilny, więc reszta zostaje alfabetycznie.
+  const tiles = useMemo(() => [...subjects].sort((a, b) => Number(live.has(b.id)) - Number(live.has(a.id))), [subjects, live])
+
+  const setEmoji = async (s: Subject, emoji: string | null) => {
+    setPickingEmoji(false)
+    await updateDoc(doc(db, 'subjects', s.id), { emoji: emoji ?? deleteField() }).catch((e) => setError(e.message))
+  }
 
   return (
     <div>
@@ -73,26 +84,38 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
             </p>
           ) : (
             <ul className="mt-4 grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Przedmioty">
-              {subjects.map((s) => {
+              {tiles.map((s) => {
                 const n = counts.get(s.id) ?? 0
+                const l = live.get(s.id)
                 return (
                   <li key={s.id}>
                     <button
-                      className="card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left"
+                      className={`card hover:bg-accent-soft flex h-full min-h-32 w-full flex-col items-start gap-2 p-4 text-left ${l ? 'ring-accent bg-accent-soft ring-2' : ''}`}
+                      aria-label={l ? `${s.name} — trwa teraz` : undefined}
                       onClick={() => {
                         setSelected(s.id)
                         setAdding(false)
                       }}
                     >
                       <span className="flex w-full items-start justify-between gap-2">
-                        <FolderIcon className="text-accent h-9 w-9" />
-                        {s.kind && (
-                          <span className="badge bg-accent-soft text-accent shrink-0" title={KIND_LABEL[s.kind]}>
-                            {s.kind}
-                          </span>
+                        <SubjectIcon emoji={s.emoji} size={36} />
+                        {l ? (
+                          <span className="badge bg-accent shrink-0 text-white">Trwa teraz</span>
+                        ) : (
+                          s.kind && (
+                            <span className="badge bg-accent-soft text-accent shrink-0" title={KIND_LABEL[s.kind]}>
+                              {s.kind}
+                            </span>
+                          )
                         )}
                       </span>
                       <span className="line-clamp-3 font-semibold break-words">{s.name}</span>
+                      {l && (
+                        <span className="text-accent text-xs font-medium">
+                          {l.form} · {l.start.slice(11)}–{l.end.slice(11)}
+                          {l.room ? ` · sala ${l.room}` : ''}
+                        </span>
+                      )}
                       <span className="text-muted mt-auto text-xs">
                         {n === 0 ? 'Brak materiałów' : `${n} ${plural(n, 'materiał', 'materiały', 'materiałów')}`}
                       </span>
@@ -110,6 +133,16 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
       </Sheet>
 
       {current && (
+        <EmojiPicker
+          open={pickingEmoji}
+          subjectName={current.name}
+          current={current.emoji}
+          onPick={(e) => setEmoji(current, e)}
+          onClose={() => setPickingEmoji(false)}
+        />
+      )}
+
+      {current && (
         <section>
           <button className="btn-ghost -ml-3 gap-1" onClick={() => setSelected(null)}>
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -119,7 +152,14 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
           </button>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight break-words">
-              <FolderIcon className="text-accent h-7 w-7 shrink-0" />
+              <button
+                className="hover:bg-accent-soft -m-1 rounded-lg p-1"
+                onClick={() => setPickingEmoji(true)}
+                aria-label="Zmień ikonę przedmiotu"
+                title="Zmień ikonę"
+              >
+                <SubjectIcon emoji={current.emoji} size={30} />
+              </button>
               {current.name}
               {current.kind && (
                 <span className="badge bg-accent-soft text-accent ml-2 align-middle" title={KIND_LABEL[current.kind]}>

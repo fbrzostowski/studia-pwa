@@ -15,7 +15,7 @@ import { ongoingEvents } from '../schedule/now'
 import { usePlanEvents } from '../schedule/usePlan'
 import { toLocalIso } from '../schedule/weeks'
 import { groupTextbooks, norm, subFolder, topFolder } from './group'
-import FolderIcon from '../../components/FolderIcon'
+import SubjectIcon from '../../components/SubjectIcon'
 
 interface Textbook {
   id: string
@@ -93,6 +93,12 @@ export default function TextbooksPage() {
   )
 
   const { subjects } = useSubjects()
+  // Folder to nazwa przedmiotu (wspólna dla jego form zajęć), więc bierzemy pierwszą ustawioną emotkę z przedmiotów o tej nazwie.
+  const emojiOf = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of subjects) if (s.emoji && !m.has(norm(s.name))) m.set(norm(s.name), s.emoji)
+    return (name: string) => m.get(norm(name))
+  }, [subjects])
   const events = usePlanEvents()
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   useEffect(() => {
@@ -316,7 +322,7 @@ export default function TextbooksPage() {
           </button>
 
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <FolderIcon className="text-accent h-7 w-7 shrink-0" />
+            <SubjectIcon emoji={emojiOf(openTile.name)} size={30} />
             <h3 className="min-w-0 text-xl font-semibold tracking-tight break-words">{openTile.name}</h3>
             {openTile.kinds.map((k) => (
               <span key={k} className="badge bg-accent-soft text-accent">
@@ -413,7 +419,7 @@ export default function TextbooksPage() {
                       aria-label={t.live ? `${t.name} — trwa teraz` : undefined}
                     >
                       <span className="flex w-full items-start justify-between gap-2">
-                        <FolderIcon className="text-accent h-9 w-9" />
+                        <SubjectIcon emoji={emojiOf(t.name)} size={36} />
                         {t.live && <span className="badge bg-accent shrink-0 text-white">Trwa teraz</span>}
                       </span>
                       <span className="line-clamp-3 font-semibold break-words">{t.name}</span>

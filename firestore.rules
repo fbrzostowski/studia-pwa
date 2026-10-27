@@ -41,6 +41,8 @@ service cloud.firestore {
         && (!('subjectId' in d) || d.subjectId is string)
         && d.items is list && d.items.size() <= 300;
     }
+    // opcjonalna emotka przedmiotu (jedna, krótka; pilnuje tego też klient)
+    function validEmoji(d) { return !('emoji' in d) || (d.emoji is string && d.emoji.size() >= 1 && d.emoji.size() <= 32); }
     function validKind(k) { return k in ['WYK', 'LAB', 'KON', 'CW', 'WYK+CW', 'KON+CW']; }
 
     match /users/{uid} {
@@ -94,11 +96,17 @@ service cloud.firestore {
     match /subjects/{docId} {
       allow read: if isApproved();
       allow create: if isApproved() && request.resource.data.createdBy == request.auth.uid
-                    && validKind(request.resource.data.kind);
+                    && validKind(request.resource.data.kind)
+                    && validEmoji(request.resource.data);
       // autorstwo jest niezmienne: tylko autor lub admin zmienia i usuwa wpis, i nikt nie przepisuje go na kogoś innego
       allow update: if (isAdmin() || (isApproved() && resource.data.createdBy == request.auth.uid))
                     && validKind(request.resource.data.kind)
+                    && validEmoji(request.resource.data)
                     && request.resource.data.createdBy == resource.data.createdBy;
+      // emotkę (wspólną ikonę przedmiotu) może ustawić każdy zatwierdzony, ale nic poza nią
+      allow update: if isApproved()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emoji'])
+                    && validEmoji(request.resource.data);
       allow delete: if isAdmin()
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
