@@ -9,7 +9,7 @@ import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
 import FileViewer from './FileViewer'
-import { canPreview } from './viewer'
+import { PHONE_MAX_WIDTH, previewInApp } from './viewer'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { findSubjectForEvent } from '../schedule/match'
@@ -146,7 +146,9 @@ export default function TextbooksPage() {
   )
 
   const open = async (b: Textbook) => {
-    if (canPreview(b.mimeType)) return setViewing(b) // PDF, HTML, TXT i obrazy: ramka w aplikacji; reszta (Word itp.) w nowej karcie
+    // PDF, HTML, TXT i obrazy: ramka w aplikacji (poza telefonem); reszta (Word itp.) i telefon: nowa karta
+    const phone = window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH}px)`).matches
+    if (previewInApp(b.mimeType, phone)) return setViewing(b)
     // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
     const w = window.open('', '_blank')
     try {

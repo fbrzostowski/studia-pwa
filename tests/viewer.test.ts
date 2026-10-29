@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ALLOWED_TYPES } from '../src/features/textbooks/upload'
-import { canPreview, hintFor, sandboxFor } from '../src/features/textbooks/viewer'
+import { canPreview, hintFor, previewInApp, sandboxFor } from '../src/features/textbooks/viewer'
 
 describe('canPreview', () => {
   it('formaty wyświetlane przez przeglądarkę są w ramce, także z parametrem charset', () => {
@@ -29,5 +29,15 @@ describe('hintFor', () => {
   it('PDF ma podpowiedź o telefonach, reszta ogólną', () => {
     expect(hintFor('application/pdf')).toContain('telefonie')
     expect(hintFor('text/html')).toContain('Nie wyświetla się')
+  })
+})
+
+describe('previewInApp', () => {
+  it('na telefonie nigdy w ramce, na większym ekranie tylko formaty z podglądem', () => {
+    for (const m of ['application/pdf', 'text/html', 'text/plain', 'image/png']) {
+      expect(previewInApp(m, true), m + ' na telefonie').toBe(false)
+      expect(previewInApp(m, false), m + ' na tablecie/komputerze').toBe(true)
+    }
+    expect(previewInApp('application/vnd.openxmlformats-officedocument.wordprocessingml.document', false)).toBe(false)
   })
 })

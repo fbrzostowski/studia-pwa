@@ -3,8 +3,17 @@ const INLINE = new Set(['application/pdf', 'text/html', 'text/plain', 'image/png
 
 const base = (mime: string) => mime.split(';')[0]!.trim().toLowerCase()
 
-/** Czy podręcznik o tym typie pokazujemy w ramce w aplikacji (reszta, np. Word, otwiera się w nowej karcie). */
+/** Czy przeglądarka potrafi pokazać ten typ w ramce (Word i podobne nie). */
 export const canPreview = (mime: string) => INLINE.has(base(mime))
+
+/** Szerokość (px), poniżej której uznajemy ekran za telefon: ta sama, od której aplikacja pokazuje dolny pasek (sm w Tailwind). */
+export const PHONE_MAX_WIDTH = 639
+
+/**
+ * Czy otworzyć podręcznik w ramce w aplikacji. Na telefonie nie: tam plik otwiera się jak po „Otwórz w nowej karcie”,
+ * bo ramka z PDF-em lub stroną na małym ekranie bywa niepełna i niewygodna. Na tablecie i komputerze w ramce.
+ */
+export const previewInApp = (mime: string, phone: boolean) => !phone && canPreview(mime)
 
 /**
  * Atrybut `sandbox` ramki albo undefined. Tylko HTML jest treścią aktywną, więc tylko on dostaje piaskownicę

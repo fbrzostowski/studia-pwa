@@ -17,7 +17,13 @@ export default defineConfig({
       injectRegister: false, // rejestrację robi src/pwa.ts (pasek „nowa wersja”)
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       // pdf.js (ok. 1,8 MB z workerem) ładuje się dopiero przy wyborze okładki z PDF-a — poza cache instalacyjnym
-      workbox: { globIgnores: ['**/pdf*'] },
+      workbox: {
+        globIgnores: ['**/pdf*'],
+        // Wtyczka włącza je sama tylko przy własnej rejestracji (injectRegister), a my rejestrujemy w src/pwa.ts, więc jawnie:
+        // nowa wersja aktywuje się od razu, a pasek „Dostępna nowa wersja” pojawia się w otwartej aplikacji.
+        skipWaiting: true,
+        clientsClaim: true,
+      },
       manifest: {
         name: 'Łomiankowe SGH',
         short_name: 'LOM.SGH',
