@@ -26,7 +26,8 @@ const setFlag = (key: string) => {
  * na całej stronie, także zalogowanym. Poniżej jest mały przycisk „Kontynuuj w przeglądarce” (do końca tej sesji karty).
  * W Chrome, Firefoksie, Edge i Operie zamiast poradnika jest jeden przycisk „Zainstaluj przez Safari” (działa po dotknięciu)
  * i zapasowe „Skopiuj adres”; dodatkowo raz na sesję próbujemy przejść automatycznie w ukrytej ramce (nic nie psuje,
- * gdy się nie uda). W przeglądarce w aplikacji (Instagram itp.) zostaje poradnik z „Otwórz w Safari”.
+ * gdy się nie uda). W przeglądarce wbudowanej w aplikację (Messenger, Instagram) przycisk by nie zadziałał, więc są tylko
+ * dwa kroki: „Więcej” → „Otwórz w przeglądarce”.
  */
 export default function InstallGate({ children }: { children: ReactNode }) {
   const ctx = useInstallContext()
@@ -73,7 +74,11 @@ export default function InstallGate({ children }: { children: ReactNode }) {
           <img src={logo} alt="" className="mx-auto h-16 w-16" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Zainstaluj aplikację</h1>
           <p className="text-muted mt-1 text-sm">
-            {handoff ? 'Instalacja działa tylko z Safari. Jedno dotknięcie i przejdziesz do niego.' : 'Łomiankowe SGH działa najlepiej dodane do ekranu głównego.'}
+            {handoff
+              ? 'Instalacja działa tylko z Safari. Jedno dotknięcie i przejdziesz do niego.'
+              : ctx.browser === 'inapp'
+                ? 'Otwórz tę stronę w przeglądarce:'
+                : 'Łomiankowe SGH działa najlepiej dodane do ekranu głównego.'}
           </p>
         </div>
 
@@ -86,30 +91,11 @@ export default function InstallGate({ children }: { children: ReactNode }) {
             <button className="text-muted hover:text-text mt-4 text-sm underline underline-offset-4" onClick={copy}>
               {copied ? 'Skopiowano. Wklej adres w Safari' : 'Nie działa? Skopiuj adres'}
             </button>
-            {ctx.browser === 'inapp' && (
-              <p className="text-muted mt-3 text-sm">Messenger i podobne aplikacje często to blokują. Dotknij wtedy „•••” i wybierz „Otwórz w przeglądarce”.</p>
-            )}
           </section>
         ) : (
-          <>
-            {ctx.browser !== 'safari' && (
-              <section className="card bg-accent-soft mt-6 p-4" aria-label="Przejście do Safari">
-                <p className="font-medium">Najpierw otwórz tę stronę w Safari</p>
-                <p className="text-muted mt-0.5 text-sm">
-                  Dodać aplikację do ekranu głównego można tylko z Safari, więc skopiuj adres, otwórz Safari i wklej go, a potem wykonaj kroki poniżej.
-                </p>
-                <div className="mt-3">
-                  <button className="btn-secondary" onClick={copy}>
-                    {copied ? 'Skopiowano. Wklej w Safari' : 'Skopiuj adres'}
-                  </button>
-                </div>
-              </section>
-            )}
-
-            <section className="mt-6" aria-label="Poradnik instalacji">
-              <InstallGuide ctx={ctx} />
-            </section>
-          </>
+          <section className="mt-6" aria-label="Poradnik instalacji">
+            <InstallGuide ctx={ctx} />
+          </section>
         )}
 
         <div className="mt-auto pt-10 text-center">

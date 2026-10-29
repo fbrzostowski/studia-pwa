@@ -60,11 +60,16 @@ describe('installSteps', () => {
   it('Chrome: Udostępnij w pasku adresu, potem dodanie do ekranu głównego', () => {
     expect(steps(UA.iphoneChrome)).toEqual(['Dotknij Udostępnij w pasku adresu', 'Wybierz „Dodaj do ekranu głównego”'])
   })
-  it('Firefox, Edge i przeglądarki w aplikacjach najpierw odsyłają do Safari', () => {
-    for (const ua of [UA.iphoneFirefox, UA.iphoneEdge, UA.iphoneInstagram]) {
+  it('Firefox i Edge najpierw odsyłają do Safari', () => {
+    for (const ua of [UA.iphoneFirefox, UA.iphoneEdge]) {
       const t = steps(ua)
       expect(t[0]).toBe('Otwórz tę stronę w Safari')
       expect(t).toHaveLength(3)
+    }
+  })
+  it('przeglądarki w aplikacjach (Messenger, Instagram): „Więcej” i „Otwórz w przeglądarce”', () => {
+    for (const ua of [UA.iphoneMessenger, UA.iphoneInstagram, UA.iphoneWebView]) {
+      expect(steps(ua)).toEqual(['Dotknij „Więcej” (•••)', 'Wybierz „Otwórz w przeglądarce”'])
     }
   })
   it('kroki są krótkie, bez opisów, i nie ma kroków „Dodaj” ani „otwieraj z ikony”', () => {
@@ -83,14 +88,14 @@ describe('przejście do Safari', () => {
     expect(safariUrl('https://app.lomiankowe-sgh.pl/')).toBe('x-safari-https://app.lomiankowe-sgh.pl/')
     expect(safariUrl('https://app.lomiankowe-sgh.pl/?a=1#x')).toBe('x-safari-https://app.lomiankowe-sgh.pl/?a=1#x')
   })
-  it('próbujemy z każdej przeglądarki na iOS poza Safari (także z wbudowanych w aplikacje), a nie z Androida i komputera', () => {
+  it('przycisk Safari tylko z Chrome, Firefox, Edge i Opery na iOS; nie z Safari, przeglądarek w aplikacjach, Androida i komputera', () => {
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneChrome }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneFirefox }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneEdge }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneSafari }))).toBe(false)
-    expect(canTryHandoff(detectInstall({ ua: UA.iphoneInstagram }))).toBe(true)
-    expect(canTryHandoff(detectInstall({ ua: UA.iphoneMessenger }))).toBe(true)
-    expect(canTryHandoff(detectInstall({ ua: UA.iphoneWebView }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneInstagram }))).toBe(false)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneMessenger }))).toBe(false)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneWebView }))).toBe(false)
     expect(canTryHandoff(detectInstall({ ua: UA.androidChrome }))).toBe(false)
   })
 })

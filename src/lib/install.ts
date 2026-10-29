@@ -43,8 +43,11 @@ export function installSteps(c: InstallContext): Step[] {
       return [share, ADD]
     case 'chrome':
       return [{ title: 'Dotknij Udostępnij w pasku adresu' }, ADD]
+    case 'inapp':
+      // przeglądarka wbudowana w aplikację (Messenger, Instagram): trzeba wyjść do zwykłej przeglądarki
+      return [{ title: 'Dotknij „Więcej” (•••)' }, { title: 'Wybierz „Otwórz w przeglądarce”' }]
     default:
-      // Firefox, Edge, Opera i przeglądarki w aplikacjach: najpewniej przez Safari
+      // Firefox, Edge, Opera: najpewniej przez Safari
       return [{ title: 'Otwórz tę stronę w Safari' }, share, ADD]
   }
 }
@@ -59,7 +62,7 @@ export const browserName = (b: IosBrowser) =>
 export const safariUrl = (href: string) => `x-safari-${href}`
 
 /**
- * Czy próbujemy przejścia do Safari. Z Chrome, Firefoksa, Edge i Opery zwykle działa; w przeglądarkach wbudowanych w aplikacje
- * (Messenger, Instagram) często jest blokowane, ale dotknięcie nic nie kosztuje, więc przycisk też tam jest.
+ * Czy dajemy przycisk przejścia do Safari. Z Chrome, Firefoksa, Edge i Opery zwykle działa. W przeglądarkach wbudowanych
+ * w aplikacje (Messenger, Instagram) jest blokowany, więc tam pokazujemy tylko kroki: „Więcej” → „Otwórz w przeglądarce”.
  */
-export const canTryHandoff = (c: InstallContext) => c.ios && c.browser !== 'safari'
+export const canTryHandoff = (c: InstallContext) => c.ios && (c.browser === 'chrome' || c.browser === 'firefox' || c.browser === 'edge' || c.browser === 'opera')
