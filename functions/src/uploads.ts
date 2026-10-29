@@ -15,6 +15,9 @@ export const ALLOWED_TYPES: Record<string, string> = {
   odp: 'application/vnd.oasis.opendocument.presentation',
   ods: 'application/vnd.oasis.opendocument.spreadsheet',
   txt: 'text/plain',
+  // strona HTML: aplikacja pokazuje ją w iframe z sandboxem (bez dostępu do aplikacji), patrz HtmlViewer
+  html: 'text/html',
+  htm: 'text/html',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

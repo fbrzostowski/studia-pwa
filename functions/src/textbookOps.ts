@@ -72,6 +72,8 @@ export async function addTextbookFromUpload(
     const finalPath = storagePathFor(ref.id, name)
     await tmp.move(bucket().file(finalPath))
     try {
+      // Typ obiektu ustalamy z rozszerzenia, a nie z tego, co zgłosiła przeglądarka (inaczej plik .pdf mógłby być serwowany jako HTML).
+      await bucket().file(finalPath).setMetadata({ contentType: mime.startsWith('text/') ? `${mime}; charset=utf-8` : mime })
       const title =
         typeof input.title === 'string' && input.title.trim() ? input.title.trim().slice(0, 150) : titleOf(name)
       await ref.set({

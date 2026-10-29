@@ -8,6 +8,7 @@ import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
+import HtmlViewer from './HtmlViewer'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { findSubjectForEvent } from '../schedule/match'
@@ -49,6 +50,7 @@ interface Tile {
 }
 
 const KIND: [RegExp, string, string][] = [
+  [/html/, 'Strona', 'bg-teal-100 text-teal-800 dark:bg-teal-500/15 dark:text-teal-300'],
   [/pdf/, 'PDF', 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300'],
   [/presentation|powerpoint/, 'Prezentacja', 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300'],
   [/word|document/, 'Dokument', 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300'],
@@ -96,6 +98,7 @@ export default function TextbooksPage() {
   const { subjects } = useSubjects()
   // Folder to nazwa przedmiotu (wspólna dla jego form zajęć), więc bierzemy pierwszą ustawioną emotkę z przedmiotów o tej nazwie.
   const openSubjectPage = useOpenSubjectPage()
+  const [htmlBook, setHtmlBook] = useState<Textbook | null>(null)
   const emojiOf = useMemo(() => {
     const m = new Map<string, string>()
     for (const s of subjects) if (s.emoji && !m.has(norm(s.name))) m.set(norm(s.name), s.emoji)
@@ -142,6 +145,7 @@ export default function TextbooksPage() {
   )
 
   const open = async (b: Textbook) => {
+    if (b.mimeType === 'text/html') return setHtmlBook(b) // strona HTML: wyświetlana w aplikacji (iframe)
     // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
     const w = window.open('', '_blank')
     try {
@@ -242,6 +246,8 @@ export default function TextbooksPage() {
   return (
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
+
+      {htmlBook && <HtmlViewer storagePath={htmlBook.storagePath} title={htmlBook.title} onClose={() => setHtmlBook(null)} />}
 
       <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">

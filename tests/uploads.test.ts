@@ -7,13 +7,21 @@ describe('lista dozwolonych plików', () => {
     expect(client.ALLOWED_TYPES).toEqual(server.ALLOWED_TYPES)
     expect(client.MAX_UPLOAD_BYTES).toBe(server.MAX_UPLOAD_BYTES)
   })
-  it('nie zawiera typów wykonywalnych ani aktywnych', () => {
-    for (const bad of ['exe', 'js', 'html', 'svg', 'sh', 'zip', 'bat', 'msi', 'jar']) {
+  it('nie zawiera typów wykonywalnych ani aktywnych poza stroną HTML', () => {
+    for (const bad of ['exe', 'js', 'svg', 'sh', 'zip', 'bat', 'msi', 'jar', 'xhtml', 'swf']) {
       expect(server.ALLOWED_TYPES[bad]).toBeUndefined()
     }
   })
   it('accept dla inputu zawiera każde rozszerzenie', () => {
     for (const ext of Object.keys(server.ALLOWED_TYPES)) expect(client.ACCEPT.split(',')).toContain(`.${ext}`)
+  })
+})
+
+describe('strona HTML', () => {
+  it('jest dozwolona świadomie (wyświetlana w iframe z sandboxem) i dostaje typ text/html', () => {
+    expect(server.mimeFor('notatki.html')).toBe('text/html')
+    expect(server.mimeFor('Notatki.HTM')).toBe('text/html')
+    expect(client.checkFile({ name: 'a.html', size: 10 })).toBeNull()
   })
 })
 

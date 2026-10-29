@@ -15,6 +15,9 @@ export const ALLOWED_TYPES: Record<string, string> = {
   odp: 'application/vnd.oasis.opendocument.presentation',
   ods: 'application/vnd.oasis.opendocument.spreadsheet',
   txt: 'text/plain',
+  // strona HTML: aplikacja pokazuje ją w iframe z sandboxem (bez dostępu do aplikacji), patrz HtmlViewer
+  html: 'text/html',
+  htm: 'text/html',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -31,7 +34,7 @@ export const extOf = (name: string) => {
 
 /** Komunikat błędu dla pliku, który nie nadaje się do wgrania, albo null. */
 export function checkFile(file: { name: string; size: number }) {
-  if (!ALLOWED_TYPES[extOf(file.name)]) return 'Ten typ pliku nie jest obsługiwany (PDF, Word, PowerPoint, Excel, OpenDocument, TXT, PNG, JPG).'
+  if (!ALLOWED_TYPES[extOf(file.name)]) return 'Ten typ pliku nie jest obsługiwany (PDF, Word, PowerPoint, Excel, OpenDocument, TXT, HTML, PNG, JPG).'
   if (file.size === 0) return 'Plik jest pusty.'
   if (file.size >= MAX_UPLOAD_BYTES) return 'Plik jest za duży (limit 100 MB).'
   return null
