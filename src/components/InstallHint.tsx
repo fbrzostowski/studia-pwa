@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { browserName, detectInstall, installSteps, type InstallContext } from '../lib/install'
+import { detectInstall, installSteps, type InstallContext } from '../lib/install'
 import Sheet from './Sheet'
 
 const isStandalone = () =>
@@ -22,41 +22,29 @@ function ShareIcon() {
   )
 }
 
-/** Poradnik krok po kroku, jak dodać aplikację do ekranu głównego iPhone'a lub iPada. */
+/** Krótki poradnik: Udostępnij, potem „Dodaj do ekranu głównego”. */
 export function InstallGuide({ ctx, stepsFor }: { ctx: InstallContext; stepsFor?: InstallContext }) {
   // `stepsFor`: kroki dla innej przeglądarki niż wykryta (np. Safari, gdy prowadzimy tam z Chrome)
   const steps = installSteps(stepsFor ?? ctx)
   return (
-    <div>
-      <p className="text-muted text-sm">
-        Wykryto: {browserName(ctx.browser)} na {ctx.ipad ? 'iPadzie' : 'iPhonie'}. Zainstalowana aplikacja ma własną ikonę, działa na całym
-        ekranie i szybciej się uruchamia.
-      </p>
-      <ol className="mt-4 space-y-4">
-        {steps.map((s, i) => (
-          <li key={s.title} className="flex gap-3">
-            <span className="bg-accent flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white" aria-hidden="true">
-              {i + 1}
-            </span>
-            <span className="min-w-0">
-              <span className="block font-medium">
-                {s.title}
-                {/Udostępnij/.test(s.title) && (
-                  <>
-                    {' '}
-                    <ShareIcon />
-                  </>
-                )}
-              </span>
-              {s.detail && <span className="text-muted mt-0.5 block text-sm">{s.detail}</span>}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p className="text-muted mt-5 text-xs">
-        Adres aplikacji: <strong>{location.host}</strong>. Po instalacji logujesz się tak samo jak w przeglądarce.
-      </p>
-    </div>
+    <ol className="space-y-3">
+      {steps.map((s, i) => (
+        <li key={s.title} className="flex items-center gap-3 text-sm">
+          <span className="bg-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" aria-hidden="true">
+            {i + 1}
+          </span>
+          <span className="font-medium">
+            {s.title}
+            {/Udostępnij/.test(s.title) && (
+              <>
+                {' '}
+                <ShareIcon />
+              </>
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
   )
 }
 

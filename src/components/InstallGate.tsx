@@ -86,6 +86,9 @@ export default function InstallGate({ children }: { children: ReactNode }) {
             <button className="text-muted hover:text-text mt-4 text-sm underline underline-offset-4" onClick={copy}>
               {copied ? 'Skopiowano. Wklej adres w Safari' : 'Nie działa? Skopiuj adres'}
             </button>
+            {ctx.browser === 'inapp' && (
+              <p className="text-muted mt-3 text-sm">Messenger i podobne aplikacje często to blokują. Dotknij wtedy „•••” i wybierz „Otwórz w przeglądarce”.</p>
+            )}
           </section>
         ) : (
           <>

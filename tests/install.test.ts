@@ -7,6 +7,7 @@ const UA = {
   iphoneFirefox: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/127.0 Mobile/15E148 Safari/605.1.15',
   iphoneEdge: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/126.2592.87 Mobile/15E148 Safari/605.1.15',
   iphoneInstagram: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 330.0.0.20.111',
+  iphoneMessenger: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/MessengerForiOS;FBAV/450.0.0.38.108;FBBV/565105341;FBDV/iPhone14,5;FBMD/iPhone;FBSN/iOS;FBSV/17.5;FBSS/3;FBID/phone;FBLC/pl_PL;FBOP/5]',
   iphoneWebView: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
   ipadSafariDesktop: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
   ipadLegacy: 'Mozilla/5.0 (iPad; CPU OS 12_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.2 Mobile/15E148 Safari/604.1',
@@ -24,6 +25,7 @@ describe('detectInstall', () => {
   })
   it('przeglądarki wbudowane w aplikacje (Instagram, WebView bez „Safari/”) to „inapp”', () => {
     expect(detectInstall({ ua: UA.iphoneInstagram }).browser).toBe('inapp')
+    expect(detectInstall({ ua: UA.iphoneMessenger })).toMatchObject({ ios: true, browser: 'inapp' })
     expect(detectInstall({ ua: UA.iphoneWebView }).browser).toBe('inapp')
   })
   it('iPad: stary UA „iPad” i iPadOS 13+ udający Maca (po ekranie dotykowym)', () => {
@@ -49,36 +51,29 @@ describe('needsInstallGuide', () => {
 })
 
 describe('installSteps', () => {
-  const steps = (ua: string, touchPoints?: number) => installSteps(detectInstall({ ua, touchPoints }))
-  const text = (s: ReturnType<typeof steps>) => s.map((x) => `${x.title} ${x.detail ?? ''}`).join(' | ')
+  const steps = (ua: string, touchPoints?: number) => installSteps(detectInstall({ ua, touchPoints })).map((x) => x.title)
 
-  it('Safari na iPhonie: przycisk na dolnym pasku, potem dodanie do ekranu głównego', () => {
-    const t = text(steps(UA.iphoneSafari))
-    expect(t).toMatch(/dolnym pasku/)
-    expect(t).toMatch(/Dodaj do ekranu głównego/)
-    expect(t).toMatch(/•••/)
-    expect(steps(UA.iphoneSafari)).toHaveLength(4)
+  it('Safari (iPhone i iPad): dwa krótkie kroki, Udostępnij i „Dodaj do ekranu głównego”', () => {
+    expect(steps(UA.iphoneSafari)).toEqual(['Dotknij Udostępnij', 'Wybierz „Dodaj do ekranu głównego”'])
+    expect(steps(UA.ipadSafariDesktop, 5)).toEqual(['Dotknij Udostępnij', 'Wybierz „Dodaj do ekranu głównego”'])
   })
-  it('Safari na iPadzie: przycisk u góry, bez podpowiedzi o „•••”', () => {
-    const t = text(steps(UA.ipadSafariDesktop, 5))
-    expect(t).toMatch(/u góry/)
-    expect(t).not.toMatch(/dolnym pasku/)
-    expect(t).not.toMatch(/•••/)
+  it('Chrome: Udostępnij w pasku adresu, potem dodanie do ekranu głównego', () => {
+    expect(steps(UA.iphoneChrome)).toEqual(['Dotknij Udostępnij w pasku adresu', 'Wybierz „Dodaj do ekranu głównego”'])
   })
-  it('Chrome: przycisk w pasku adresu, informacja o iOS 16.4 i podpowiedź o Safari', () => {
-    const t = text(steps(UA.iphoneChrome))
-    expect(t).toMatch(/pasku adresu/)
-    expect(t).toMatch(/16\.4/)
-    expect(t).toMatch(/Safari/)
+  it('Firefox, Edge i przeglądarki w aplikacjach najpierw odsyłają do Safari', () => {
+    for (const ua of [UA.iphoneFirefox, UA.iphoneEdge, UA.iphoneInstagram]) {
+      const t = steps(ua)
+      expect(t[0]).toBe('Otwórz tę stronę w Safari')
+      expect(t).toHaveLength(3)
+    }
   })
-  it('przeglądarka w aplikacji i inne przeglądarki najpierw odsyłają do Safari', () => {
-    expect(steps(UA.iphoneInstagram)[0]!.title).toMatch(/Safari/)
-    expect(steps(UA.iphoneFirefox)[0]!.title).toMatch(/Safari/)
-  })
-  it('każdy wariant kończy się otwieraniem z ikony na ekranie głównym', () => {
+  it('kroki są krótkie, bez opisów, i nie ma kroków „Dodaj” ani „otwieraj z ikony”', () => {
     for (const ua of [UA.iphoneSafari, UA.iphoneChrome, UA.iphoneInstagram, UA.iphoneFirefox]) {
-      const s = steps(ua)
-      expect(s.some((x) => /z ikony na ekranie głównym/.test(x.title))).toBe(true)
+      for (const step of installSteps(detectInstall({ ua }))) {
+        expect(Object.keys(step)).toEqual(['title'])
+        expect(step.title.length).toBeLessThanOrEqual(40)
+        expect(step.title).not.toMatch(/Dotknij „Dodaj”|z ikony/)
+      }
     }
   })
 })
@@ -88,12 +83,14 @@ describe('przejście do Safari', () => {
     expect(safariUrl('https://app.lomiankowe-sgh.pl/')).toBe('x-safari-https://app.lomiankowe-sgh.pl/')
     expect(safariUrl('https://app.lomiankowe-sgh.pl/?a=1#x')).toBe('x-safari-https://app.lomiankowe-sgh.pl/?a=1#x')
   })
-  it('próbujemy tylko z Chrome, Firefox, Edge i Opery na iOS, nie z Safari ani przeglądarek w aplikacjach', () => {
+  it('próbujemy z każdej przeglądarki na iOS poza Safari (także z wbudowanych w aplikacje), a nie z Androida i komputera', () => {
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneChrome }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneFirefox }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneEdge }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.iphoneSafari }))).toBe(false)
-    expect(canTryHandoff(detectInstall({ ua: UA.iphoneInstagram }))).toBe(false)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneInstagram }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneMessenger }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneWebView }))).toBe(true)
     expect(canTryHandoff(detectInstall({ ua: UA.androidChrome }))).toBe(false)
   })
 })

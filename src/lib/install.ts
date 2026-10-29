@@ -31,43 +31,21 @@ export const needsInstallGuide = (c: InstallContext) => c.ios && !c.standalone
 
 export interface Step {
   title: string
-  detail?: string
 }
 
-const ADD_STEPS: Step[] = [
-  { title: 'Wybierz „Dodaj do ekranu głównego”', detail: 'Przewiń listę w arkuszu Udostępnij w dół, jeśli opcji nie widać od razu.' },
-  { title: 'Dotknij „Dodaj”', detail: 'Nazwę „LOM.SGH” możesz zostawić. Przycisk jest w prawym górnym rogu.' },
-  { title: 'Otwieraj aplikację z ikony na ekranie głównym', detail: 'Tylko wtedy działa jak zwykła aplikacja: na całym ekranie i bez paska przeglądarki.' },
-]
+const ADD: Step = { title: 'Wybierz „Dodaj do ekranu głównego”' }
 
-/** Kroki instalacji dopasowane do urządzenia i przeglądarki. */
+/** Krótkie kroki instalacji dopasowane do przeglądarki: Udostępnij, potem „Dodaj do ekranu głównego”. */
 export function installSteps(c: InstallContext): Step[] {
-  const where = c.ipad ? 'w pasku narzędzi u góry, obok adresu' : 'na dolnym pasku'
-  const shareSafari: Step = {
-    title: 'Dotknij przycisku Udostępnij',
-    detail: `To kwadrat ze strzałką w górę, ${where}.${c.ipad ? '' : ' Jeśli go nie widać, dotknij „•••” (Więcej) i wybierz Udostępnij.'}`,
-  }
+  const share: Step = { title: 'Dotknij Udostępnij' }
   switch (c.browser) {
     case 'safari':
-      return [shareSafari, ...ADD_STEPS]
+      return [share, ADD]
     case 'chrome':
-      return [
-        { title: 'Dotknij przycisku Udostępnij w pasku adresu', detail: 'To kwadrat ze strzałką w górę, przy adresie strony. Dodawanie z Chrome wymaga iOS 16.4 lub nowszego.' },
-        ...ADD_STEPS,
-        { title: 'Nie ma takiej opcji?', detail: 'Otwórz stronę w Safari i zrób to samo, bo Safari działa na każdej wersji iOS.' },
-      ]
-    case 'inapp':
-      return [
-        { title: 'Otwórz tę stronę w Safari', detail: 'Ta przeglądarka jest częścią innej aplikacji i nie potrafi dodać strony do ekranu głównego. Dotknij „•••” albo ikony kompasu i wybierz „Otwórz w Safari”, albo skopiuj adres i wklej go w Safari.' },
-        shareSafari,
-        ...ADD_STEPS,
-      ]
+      return [{ title: 'Dotknij Udostępnij w pasku adresu' }, ADD]
     default:
-      return [
-        { title: 'Najpewniej zrób to w Safari', detail: 'Skopiuj adres tej strony i otwórz go w Safari. Inne przeglądarki na iOS nie zawsze oferują dodanie do ekranu głównego.' },
-        shareSafari,
-        ...ADD_STEPS,
-      ]
+      // Firefox, Edge, Opera i przeglądarki w aplikacjach: najpewniej przez Safari
+      return [{ title: 'Otwórz tę stronę w Safari' }, share, ADD]
   }
 }
 
@@ -80,5 +58,8 @@ export const browserName = (b: IosBrowser) =>
  */
 export const safariUrl = (href: string) => `x-safari-${href}`
 
-/** Przeglądarki, z których warto próbować przejścia do Safari (w aplikacjach typu Instagram to zwykle nie działa). */
-export const canTryHandoff = (c: InstallContext) => c.ios && (c.browser === 'chrome' || c.browser === 'firefox' || c.browser === 'edge' || c.browser === 'opera')
+/**
+ * Czy próbujemy przejścia do Safari. Z Chrome, Firefoksa, Edge i Opery zwykle działa; w przeglądarkach wbudowanych w aplikacje
+ * (Messenger, Instagram) często jest blokowane, ale dotknięcie nic nie kosztuje, więc przycisk też tam jest.
+ */
+export const canTryHandoff = (c: InstallContext) => c.ios && c.browser !== 'safari'
