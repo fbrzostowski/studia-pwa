@@ -72,7 +72,7 @@ export default function InstallGate({ children }: { children: ReactNode }) {
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col">
         <div className="text-center">
           <img src={logo} alt="" className="mx-auto h-16 w-16" />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Zainstaluj aplikację</h1>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">{ctx.browser === 'inapp' ? 'Łomiankowe SGH' : 'Zainstaluj aplikację'}</h1>
           <p className="text-muted mt-1 text-sm">
             {handoff
               ? 'Instalacja działa tylko z Safari. Jedno dotknięcie i przejdziesz do niego.'
