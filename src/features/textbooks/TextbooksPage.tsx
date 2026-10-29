@@ -8,7 +8,8 @@ import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
-import HtmlViewer from './HtmlViewer'
+import FileViewer from './FileViewer'
+import { canPreview } from './viewer'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { findSubjectForEvent } from '../schedule/match'
@@ -98,7 +99,7 @@ export default function TextbooksPage() {
   const { subjects } = useSubjects()
   // Folder to nazwa przedmiotu (wspólna dla jego form zajęć), więc bierzemy pierwszą ustawioną emotkę z przedmiotów o tej nazwie.
   const openSubjectPage = useOpenSubjectPage()
-  const [htmlBook, setHtmlBook] = useState<Textbook | null>(null)
+  const [viewing, setViewing] = useState<Textbook | null>(null)
   const emojiOf = useMemo(() => {
     const m = new Map<string, string>()
     for (const s of subjects) if (s.emoji && !m.has(norm(s.name))) m.set(norm(s.name), s.emoji)
@@ -145,7 +146,7 @@ export default function TextbooksPage() {
   )
 
   const open = async (b: Textbook) => {
-    if (b.mimeType === 'text/html') return setHtmlBook(b) // strona HTML: wyświetlana w aplikacji (iframe)
+    if (canPreview(b.mimeType)) return setViewing(b) // PDF, HTML, TXT i obrazy: ramka w aplikacji; reszta (Word itp.) w nowej karcie
     // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
     const w = window.open('', '_blank')
     try {
@@ -247,7 +248,7 @@ export default function TextbooksPage() {
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      {htmlBook && <HtmlViewer storagePath={htmlBook.storagePath} title={htmlBook.title} onClose={() => setHtmlBook(null)} />}
+      {viewing && <FileViewer storagePath={viewing.storagePath} title={viewing.title} mimeType={viewing.mimeType} onClose={() => setViewing(null)} />}
 
       <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">

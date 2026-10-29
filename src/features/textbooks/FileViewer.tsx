@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import { getDownloadURL, ref } from 'firebase/storage'
 import { storage } from '../../firebase/config'
+import { hintFor, sandboxFor } from './viewer'
 
 /**
- * Podręcznik w postaci strony HTML, pokazany w iframe na całym ekranie.
+ * Podręcznik pokazany w iframe na całym ekranie (PDF, HTML, TXT, obrazy).
  *
- * Bezpieczeństwo: to treść wgrana przez użytkownika, więc ramka ma `sandbox` bez `allow-same-origin`
+ * Bezpieczeństwo: HTML to treść wgrana przez użytkownika, więc jego ramka ma `sandbox` bez `allow-same-origin`
  * (strona dostaje „pusty” origin, nie widzi naszych danych logowania ani Firestore), bez `allow-top-navigation`
- * (nie przekieruje aplikacji) i bez formularzy. Skrypty i otwieranie linków w nowych kartach są dozwolone.
- * Adres pliku w `src` nie wymaga CORS; Storage serwuje HTML jako text/html bez blokady ramek.
- * Gdyby ramka się nie wyświetlała (np. strona sama zabrania osadzania), zostaje „Otwórz w nowej karcie”.
+ * (nie przekieruje aplikacji) i bez formularzy. Pozostałe typy nie mają piaskownicy (inaczej przeglądarka nie
+ * pokaże PDF), ale plik i tak jest z obcego origin (Storage). Adres pliku w `src` nie wymaga CORS.
+ * Gdyby ramka się nie wyświetlała (np. PDF na telefonie), zostaje „Otwórz w nowej karcie”.
  */
-export default function HtmlViewer({ storagePath, title, onClose }: { storagePath: string; title: string; onClose: () => void }) {
+export default function FileViewer({ storagePath, title, mimeType, onClose }: { storagePath: string; title: string; mimeType: string; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,14 +59,14 @@ export default function HtmlViewer({ storagePath, title, onClose }: { storagePat
           <iframe
             title={title}
             src={url}
-            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            sandbox={sandboxFor(mimeType)}
             referrerPolicy="no-referrer"
             className="h-full w-full border-0"
           />
         )}
       </div>
       <p className="text-muted border-line bg-surface border-t px-3 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-xs">
-        Nie wyświetla się poprawnie? Użyj „Otwórz w nowej karcie”.
+        {hintFor(mimeType)}
       </p>
     </div>
   )
