@@ -65,3 +65,22 @@ export function describeDeleted(c: DeleteCounts): string[] {
   ]
   return parts.filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`)
 }
+
+export interface AccountCounts {
+  memberships: number
+  exams: number
+  todoLists: number
+  files: number
+  plan: boolean
+}
+
+/** Co zniknie wraz z kontem, po polsku; pomija zera (plan pokazujemy tylko, gdy jest). */
+export function describeAccount(c: AccountCounts): string[] {
+  const parts: [number, string, string, string][] = [
+    [c.memberships, 'przypisanie do przedmiotu', 'przypisania do przedmiotów', 'przypisań do przedmiotów'],
+    [c.todoLists, 'lista do nauki', 'listy do nauki', 'list do nauki'],
+    [c.exams, 'dodany przez Ciebie termin zaliczenia', 'dodane przez Ciebie terminy zaliczeń', 'dodanych przez Ciebie terminów zaliczeń'],
+    [c.files, 'niedokończone wgranie pliku', 'niedokończone wgrania plików', 'niedokończonych wgrań plików'],
+  ]
+  return [...(c.plan ? ['plan zajęć'] : []), ...parts.filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`)]
+}

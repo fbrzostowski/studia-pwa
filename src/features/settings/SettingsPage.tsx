@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { shownName, useAuth } from '../../firebase/AuthContext'
 import { InstallGuideSheet, useInstallContext } from '../../components/InstallHint'
+import Sheet from '../../components/Sheet'
+import DeleteAccount from './DeleteAccount'
 import { needsInstallGuide } from '../../lib/install'
 import AccessRequests from '../admin/AccessRequests'
 
 export default function SettingsPage() {
   const { profile, logout } = useAuth()
+  const [deleting, setDeleting] = useState(false)
   const install = useInstallContext()
   const [guide, setGuide] = useState(false)
   if (!profile) return null
@@ -61,6 +64,19 @@ export default function SettingsPage() {
       <button className="btn-secondary text-danger w-full" onClick={logout}>
         Wyloguj
       </button>
+
+      <section>
+        <h2 className="text-muted mb-4 text-xs font-semibold tracking-wide uppercase">Konto</h2>
+        <div className="card flex items-center justify-between gap-3 p-4">
+          <p className="min-w-0 text-sm">Usuń konto i swoje dane osobiste. Materiały i podręczniki zostają.</p>
+          <button className="btn-danger shrink-0" onClick={() => setDeleting(true)}>
+            Usuń konto
+          </button>
+        </div>
+        <Sheet open={deleting} title="Usuń konto" onClose={() => setDeleting(false)}>
+          {deleting && <DeleteAccount onDeleted={() => void logout()} />}
+        </Sheet>
+      </section>
     </div>
   )
 }

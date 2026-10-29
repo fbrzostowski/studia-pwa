@@ -1,20 +1,10 @@
-import { useMemo, useState } from 'react'
-import { browserName, detectInstall, installSteps, needsInstallGuide, type InstallContext } from '../lib/install'
+import { useMemo } from 'react'
+import { browserName, detectInstall, installSteps, type InstallContext } from '../lib/install'
 import Sheet from './Sheet'
-
-const KEY = 'installHintDismissed'
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true
-
-function wasDismissed() {
-  try {
-    return localStorage.getItem(KEY) === '1'
-  } catch {
-    return false
-  }
-}
 
 /** Urządzenie i przeglądarka użytkownika oraz to, czy aplikacja jest już zainstalowana (uruchomiona z ekranu głównego). */
 export function useInstallContext(): InstallContext {
@@ -33,8 +23,9 @@ function ShareIcon() {
 }
 
 /** Poradnik krok po kroku, jak dodać aplikację do ekranu głównego iPhone'a lub iPada. */
-export function InstallGuide({ ctx }: { ctx: InstallContext }) {
-  const steps = installSteps(ctx)
+export function InstallGuide({ ctx, stepsFor }: { ctx: InstallContext; stepsFor?: InstallContext }) {
+  // `stepsFor`: kroki dla innej przeglądarki niż wykryta (np. Safari, gdy prowadzimy tam z Chrome)
+  const steps = installSteps(stepsFor ?? ctx)
   return (
     <div>
       <p className="text-muted text-sm">
@@ -75,41 +66,5 @@ export function InstallGuideSheet({ open, onClose, ctx }: { open: boolean; onClo
     <Sheet open={open} title="Zainstaluj aplikację" onClose={onClose}>
       <InstallGuide ctx={ctx} />
     </Sheet>
-  )
-}
-
-/** Baner na iPhonie i iPadzie, gdy aplikacja jest otwarta w przeglądarce, a nie z ekranu głównego. */
-export default function InstallHint() {
-  const ctx = useInstallContext()
-  const [hidden, setHidden] = useState(wasDismissed)
-  const [open, setOpen] = useState(false)
-
-  if (hidden || !needsInstallGuide(ctx)) return null
-
-  const dismiss = () => {
-    try {
-      localStorage.setItem(KEY, '1')
-    } catch {
-      // tryb prywatny: ukryj tylko na tę sesję
-    }
-    setHidden(true)
-  }
-
-  return (
-    <>
-      <div className="card bg-accent-soft mb-4 flex items-start justify-between gap-3 p-3.5 text-sm" role="region" aria-label="Instalacja aplikacji">
-        <div>
-          <p className="font-medium">Zainstaluj aplikację na {ctx.ipad ? 'iPadzie' : 'iPhonie'}</p>
-          <p className="text-muted mt-0.5">Dodaj ją do ekranu głównego, żeby działała jak zwykła aplikacja.</p>
-          <button className="btn-primary mt-2.5 min-h-9 py-1.5" onClick={() => setOpen(true)}>
-            Jak to zrobić
-          </button>
-        </div>
-        <button className="btn-ghost -m-1 shrink-0" onClick={dismiss}>
-          Zamknij
-        </button>
-      </div>
-      <InstallGuideSheet open={open} onClose={() => setOpen(false)} ctx={ctx} />
-    </>
   )
 }

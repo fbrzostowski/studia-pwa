@@ -9,13 +9,14 @@ import TextbooksPage from './features/textbooks/TextbooksPage'
 import ExamsPage from './features/exams/ExamsPage'
 import SubjectsPage from './features/subjects/SubjectsPage'
 import SettingsPage from './features/settings/SettingsPage'
-import InstallHint from './components/InstallHint'
+import InstallGate from './components/InstallGate'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import Sheet from './components/Sheet'
 import SubjectPage from './features/subject/SubjectPage'
 import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
+import { DELETED_KEY } from './features/settings/DeleteAccount'
 
 const logo = `${import.meta.env.BASE_URL}favicon.svg`
 
@@ -27,7 +28,6 @@ function Centered({ children }: { children: ReactNode }) {
       <UpdateBanner />
       <main className="flex min-h-dvh flex-col items-center justify-center p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-sm">
-          <InstallHint />
           <div className="card p-8 text-center">
             <img src={logo} alt="" className="mx-auto h-16 w-16" />
             <h1 className="mt-4 text-2xl font-semibold tracking-tight">Łomiankowe SGH</h1>
@@ -37,6 +37,15 @@ function Centered({ children }: { children: ReactNode }) {
       </main>
     </>
   )
+}
+
+/** Komunikat po usunięciu konta (zapisany tuż przed wylogowaniem); pokazuje się, dopóki karta jest otwarta. */
+const deletedNotice = () => {
+  try {
+    return sessionStorage.getItem(DELETED_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 function Gate() {
@@ -53,6 +62,11 @@ function Gate() {
   if (!user) {
     return (
       <Centered>
+        {deletedNotice() && (
+          <p className="bg-accent-soft text-accent mt-4 rounded-xl p-3 text-sm" role="status">
+            Twoje konto zostało usunięte razem z danymi osobistymi.
+          </p>
+        )}
         <p className="text-muted mt-1 text-sm">Wspólne materiały i terminy z zajęć</p>
         <button className="btn-primary mt-6 w-full" onClick={login}>
           Zaloguj się przez Google
@@ -191,7 +205,6 @@ function Panel() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-8">
-        <InstallHint />
         <SubjectPageProvider
           value={(id, person) => {
             setSettings(false)
@@ -321,8 +334,11 @@ function usePendingCount(enabled: boolean) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Gate />
-    </AuthProvider>
+    // Poradnik instalacji na iPhonie i iPadzie jest ponad logowaniem i panelem, więc widzą go też zalogowani.
+    <InstallGate>
+      <AuthProvider>
+        <Gate />
+      </AuthProvider>
+    </InstallGate>
   )
 }

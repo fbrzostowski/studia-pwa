@@ -73,3 +73,12 @@ export function installSteps(c: InstallContext): Step[] {
 
 export const browserName = (b: IosBrowser) =>
   ({ safari: 'Safari', chrome: 'Chrome', firefox: 'Firefox', edge: 'Edge', opera: 'Opera', inapp: 'przeglądarka w aplikacji' })[b]
+
+/**
+ * Adres, który iOS otwiera w Safari (nieoficjalny schemat x-safari-*). Działa po dotknięciu linku w wielu przeglądarkach
+ * (Chrome, Firefox, Edge), ale nie jest gwarantowany, dlatego zawsze jest też „skopiuj adres”.
+ */
+export const safariUrl = (href: string) => `x-safari-${href}`
+
+/** Przeglądarki, z których warto próbować przejścia do Safari (w aplikacjach typu Instagram to zwykle nie działa). */
+export const canTryHandoff = (c: InstallContext) => c.ios && (c.browser === 'chrome' || c.browser === 'firefox' || c.browser === 'edge' || c.browser === 'opera')

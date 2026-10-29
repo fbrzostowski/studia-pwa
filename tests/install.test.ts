@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectInstall, installSteps, needsInstallGuide } from '../src/lib/install'
+import { canTryHandoff, detectInstall, installSteps, needsInstallGuide, safariUrl } from '../src/lib/install'
 
 const UA = {
   iphoneSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
@@ -80,5 +80,20 @@ describe('installSteps', () => {
       const s = steps(ua)
       expect(s.some((x) => /z ikony na ekranie głównym/.test(x.title))).toBe(true)
     }
+  })
+})
+
+describe('przejście do Safari', () => {
+  it('safariUrl dopisuje schemat x-safari- do pełnego adresu', () => {
+    expect(safariUrl('https://app.lomiankowe-sgh.pl/')).toBe('x-safari-https://app.lomiankowe-sgh.pl/')
+    expect(safariUrl('https://app.lomiankowe-sgh.pl/?a=1#x')).toBe('x-safari-https://app.lomiankowe-sgh.pl/?a=1#x')
+  })
+  it('próbujemy tylko z Chrome, Firefox, Edge i Opery na iOS, nie z Safari ani przeglądarek w aplikacjach', () => {
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneChrome }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneFirefox }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneEdge }))).toBe(true)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneSafari }))).toBe(false)
+    expect(canTryHandoff(detectInstall({ ua: UA.iphoneInstagram }))).toBe(false)
+    expect(canTryHandoff(detectInstall({ ua: UA.androidChrome }))).toBe(false)
   })
 })
