@@ -24,8 +24,9 @@ const setFlag = (key: string) => {
 /**
  * Na iPhonie i iPadzie, gdy aplikacja jest otwarta w przeglądarce (nie z ekranu głównego), pokazuje poradnik instalacji
  * na całej stronie, także zalogowanym. Poniżej jest mały przycisk „Kontynuuj w przeglądarce” (do końca tej sesji karty).
- * W innej przeglądarce niż Safari dodatkowo próbuje przejść do Safari: automatycznie, raz na sesję, w ukrytej ramce
- * (nic nie psuje, gdy się nie uda), oraz przyciskiem „Otwórz w Safari”, który działa po dotknięciu.
+ * W Chrome, Firefoksie, Edge i Operie zamiast poradnika jest jeden przycisk „Zainstaluj przez Safari” (działa po dotknięciu)
+ * i zapasowe „Skopiuj adres”; dodatkowo raz na sesję próbujemy przejść automatycznie w ukrytej ramce (nic nie psuje,
+ * gdy się nie uda). W przeglądarce w aplikacji (Instagram itp.) zostaje poradnik z „Otwórz w Safari”.
  */
 export default function InstallGate({ children }: { children: ReactNode }) {
   const ctx = useInstallContext()
@@ -71,32 +72,42 @@ export default function InstallGate({ children }: { children: ReactNode }) {
         <div className="text-center">
           <img src={logo} alt="" className="mx-auto h-16 w-16" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Zainstaluj aplikację</h1>
-          <p className="text-muted mt-1 text-sm">Łomiankowe SGH działa najlepiej dodane do ekranu głównego.</p>
+          <p className="text-muted mt-1 text-sm">
+            {handoff ? 'Instalacja działa tylko z Safari. Jedno dotknięcie i przejdziesz do niego.' : 'Łomiankowe SGH działa najlepiej dodane do ekranu głównego.'}
+          </p>
         </div>
 
-        {ctx.browser !== 'safari' && (
-          <section className="card bg-accent-soft mt-6 p-4" aria-label="Przejście do Safari">
-            <p className="font-medium">Najpierw otwórz tę stronę w Safari</p>
-            <p className="text-muted mt-0.5 text-sm">
-              Dodać aplikację do ekranu głównego najpewniej można z Safari, więc przejdź do niego, a potem wykonaj kroki poniżej.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {handoff && (
-                <a className="btn-primary" href={safariUrl(location.href)}>
-                  Otwórz w Safari
-                </a>
-              )}
-              <button className="btn-secondary" onClick={copy}>
-                {copied ? 'Skopiowano. Wklej w Safari' : 'Skopiuj adres'}
-              </button>
-            </div>
+        {handoff ? (
+          // Chrome, Firefox, Edge, Opera: bez ściany tekstu, jeden przycisk. Kroki pokaże dopiero Safari.
+          <section className="mt-10 text-center" aria-label="Przejście do Safari">
+            <a className="btn-primary flex w-full justify-center py-3.5 text-base" href={safariUrl(location.href)}>
+              Zainstaluj przez Safari
+            </a>
+            <button className="text-muted hover:text-text mt-4 text-sm underline underline-offset-4" onClick={copy}>
+              {copied ? 'Skopiowano. Wklej adres w Safari' : 'Nie działa? Skopiuj adres'}
+            </button>
           </section>
-        )}
+        ) : (
+          <>
+            {ctx.browser !== 'safari' && (
+              <section className="card bg-accent-soft mt-6 p-4" aria-label="Przejście do Safari">
+                <p className="font-medium">Najpierw otwórz tę stronę w Safari</p>
+                <p className="text-muted mt-0.5 text-sm">
+                  Dodać aplikację do ekranu głównego można tylko z Safari, więc skopiuj adres, otwórz Safari i wklej go, a potem wykonaj kroki poniżej.
+                </p>
+                <div className="mt-3">
+                  <button className="btn-secondary" onClick={copy}>
+                    {copied ? 'Skopiowano. Wklej w Safari' : 'Skopiuj adres'}
+                  </button>
+                </div>
+              </section>
+            )}
 
-        <section className="mt-6" aria-label="Poradnik instalacji">
-          {/* z Chrome, Firefoksa i Edge prowadzimy do Safari, więc kroki są dla Safari; w przeglądarce w aplikacji kroki same zaczynają od „Otwórz w Safari” */}
-          <InstallGuide ctx={ctx} stepsFor={handoff ? { ...ctx, browser: 'safari' } : ctx} />
-        </section>
+            <section className="mt-6" aria-label="Poradnik instalacji">
+              <InstallGuide ctx={ctx} />
+            </section>
+          </>
+        )}
 
         <div className="mt-auto pt-10 text-center">
           <button className="text-muted hover:text-text text-sm underline underline-offset-4" onClick={skip}>
