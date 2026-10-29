@@ -75,18 +75,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // osobisty plan zajęć z USOS: jeden dokument na użytkownika; prywatny, dopóki właściciel
-    // sam go nie udostępni (shared: true), wtedy czytają go (tylko do odczytu) zatwierdzeni użytkownicy
+    // osobisty plan zajęć z USOS: jeden dokument na użytkownika. Czyta go właściciel i admin (zawsze),
+    // a pozostali zatwierdzeni tylko wtedy, gdy właściciel go udostępnił (shared: true)
     match /plans/{uid} {
-      allow read: if isApproved() && (request.auth.uid == uid || resource.data.get('shared', false) == true);
+      allow read: if isApproved() && (request.auth.uid == uid || isAdmin() || resource.data.get('shared', false) == true);
       allow delete: if isApproved() && request.auth.uid == uid;
       allow create, update: if isApproved() && request.auth.uid == uid
                             && request.resource.data.events is list
                             && request.resource.data.events.size() <= 1000
                             && (!('shared' in request.resource.data) || request.resource.data.shared is bool);
-      // admin poprawia zajęcia tylko w planie udostępnionym przez właściciela i zmienia wyłącznie listę zajęć
+      // admin poprawia zajęcia w dowolnym planie, ale zmienia wyłącznie listę zajęć (nie zgodę ani nazwę pliku)
       allow update: if isAdmin()
-                    && resource.data.get('shared', false) == true
                     && request.resource.data.events is list
                     && request.resource.data.events.size() <= 1000
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['events']);

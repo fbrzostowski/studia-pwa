@@ -36,7 +36,8 @@ function SharePlan() {
           <span className="block font-medium">Udostępnij mój plan innym</span>
           <span className="text-muted block text-sm">
             Zatwierdzeni użytkownicy zobaczą Twój plan zajęć (tylko do odczytu) i znajdą Cię na liście w zakładce Plan.
-            Administrator może w nim poprawiać zajęcia. Możesz to wyłączyć w każdej chwili.
+            Możesz to wyłączyć w każdej chwili. Administrator ma wgląd w każdy plan i może poprawiać w nim zajęcia
+            niezależnie od tego ustawienia.
             {state && !state.exists && ' Najpierw zaimportuj plan z USOS.'}
           </span>
         </span>

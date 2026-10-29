@@ -159,7 +159,9 @@ export default function PlanPage() {
         })}
       </ul>
       <p className="text-muted mt-3 text-xs">
-        Widać tylko osoby, które udostępniły plan (Ustawienia → Prywatność). Plan innej osoby jest tylko do odczytu.
+        {profile?.role === 'admin'
+          ? 'Jako admin widzisz plany wszystkich osób i możesz poprawiać w nich zajęcia.'
+          : 'Widać tylko osoby, które udostępniły plan (Ustawienia → Prywatność). Plan innej osoby jest tylko do odczytu.'}
       </p>
     </Sheet>
   )

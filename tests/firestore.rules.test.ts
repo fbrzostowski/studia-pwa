@@ -267,7 +267,7 @@ describe('plans: udostępnianie planu innym', () => {
     await assertFails(deleteDoc(doc(as('bob'), 'plans/alice')))
     await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
   })
-  it('wycofanie zgody od razu zamyka dostęp, a scalanie nie gubi flagi', async () => {
+  it('wycofanie zgody zamyka dostęp zwykłym użytkownikom (admin ma go zawsze), a scalanie nie gubi flagi', async () => {
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(true)))
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), { events: [] }, { merge: true })) // ponowny import
     await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
@@ -281,19 +281,18 @@ describe('plans: udostępnianie planu innym', () => {
   })
 })
 
-describe('plans: admin poprawia zajęcia w udostępnionym planie', () => {
+describe('plans: admin czyta i poprawia zajęcia w każdym planie', () => {
   const seed = async (shared: boolean | undefined) =>
     env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'plans/alice'), { events: [{ name: 'A' }], fileName: 'a.ics', ...(shared === undefined ? {} : { shared }) })
     })
 
-  it('admin zmienia zajęcia tylko w planie z shared: true', async () => {
-    await seed(true)
-    await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }, { name: 'C' }] }))
-    await seed(false)
-    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }] }))
-    await seed(undefined)
-    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }] }))
+  it('admin czyta i zmienia zajęcia w planie niezależnie od zgody właściciela', async () => {
+    for (const shared of [true, false, undefined]) {
+      await seed(shared)
+      await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
+      await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }, { name: 'C' }] }))
+    }
   })
   it('admin nie rusza niczego poza zajęciami i nie zakłada ani nie usuwa cudzego planu', async () => {
     await seed(true)
@@ -321,12 +320,12 @@ describe('plans: osobisty plan zajęć', () => {
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(5)))
     await assertSucceeds(deleteDoc(doc(as('alice'), 'plans/alice')))
   })
-  it('cudzego planu nie czyta ani nie zapisuje nikt, nawet admin', async () => {
+  it('cudzy nieudostępniony plan czyta tylko admin; nikt poza właścicielem go nie zapisuje ani nie usuwa', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'plans/alice'), plan())
     })
     await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
-    await assertFails(getDoc(doc(as('admin'), 'plans/alice')))
+    await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
     await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan()))
     await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
   })
