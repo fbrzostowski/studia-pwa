@@ -104,3 +104,15 @@ describe('eventsForCandidate', () => {
     )
   })
 })
+
+describe('puste pola opisu', () => {
+  const ics = (desc: string) =>
+    `BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261001T095000\nDTEND:20261001T113000\nSUMMARY:Algebra\nDESCRIPTION:${desc}\nEND:VEVENT\nEND:VCALENDAR`
+  it('pusta sala ani pusta sygnatura nie połykają następnej linii', () => {
+    const [e] = parseIcs(ics('Nazwa: Algebra\\nSygnatura: \\nForma: WYK\\, Grupa: 1\\, \\nSala: \\n09:50 - 11:30'))
+    expect(e.code).toBe('')
+    expect(e.room).toBeUndefined()
+    expect(e.form).toBe('WYK')
+    expect(e.group).toBe('1')
+  })
+})

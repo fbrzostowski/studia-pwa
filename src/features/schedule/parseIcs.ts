@@ -55,18 +55,19 @@ export function parseIcs(text: string): IcsEvent[] {
     const start = toLocalIso(prop(b, 'DTSTART'))
     const end = toLocalIso(prop(b, 'DTEND')) || start
     const desc = unescapeText(prop(b, 'DESCRIPTION'))
-    // Linie opisu mogą się różnić (np. brak „Sala:”), więc każde pole wyciągamy osobno.
+    // Linie opisu mogą się różnić (np. brak „Sala:”), więc każde pole wyciągamy osobno. Po etykiecie dopuszczamy tylko
+    // spacje i tabulatory (nie \s), żeby puste pole nie połknęło następnej linii.
     const field = (re: RegExp) => desc.match(re)?.[1].trim() ?? ''
 
     const form = field(/Forma:\s*([^,\n]+)/).toUpperCase()
     if (!start || !form) continue
 
     events.push({
-      code: field(/^Sygnatura:\s*(.+)$/m),
-      name: field(/^Nazwa:\s*(.+)$/m) || unescapeText(prop(b, 'SUMMARY')),
+      code: field(/^Sygnatura:[ \t]*(.+)$/m),
+      name: field(/^Nazwa:[ \t]*(.+)$/m) || unescapeText(prop(b, 'SUMMARY')),
       form,
       group: field(/Grupa:\s*([^,\n]+)/) || undefined,
-      room: field(/^Sala:\s*(.+)$/m) || undefined,
+      room: field(/^Sala:[ \t]*(.+)$/m) || undefined,
       start,
       end,
     })

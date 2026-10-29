@@ -57,3 +57,7 @@ export function replaceEvent(events: IcsEvent[], index: number, event: IcsEvent 
   if (index < 0) return event ? [...events, event] : events
   return event ? events.map((e, i) => (i === index ? event : e)) : events.filter((_, i) => i !== index)
 }
+
+/** Zajęcia bez pustych pól (Firestore nie przyjmuje undefined, a puste wartości tylko zajmują miejsce). */
+export const compactEvents = (events: IcsEvent[]): IcsEvent[] =>
+  events.map((e) => Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined && v !== '')) as unknown as IcsEvent)

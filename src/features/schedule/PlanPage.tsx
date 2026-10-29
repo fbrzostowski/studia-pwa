@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { deleteDoc, doc, onSnapshot, updateDoc, type Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
@@ -9,10 +9,11 @@ import Sheet from '../../components/Sheet'
 import { useSharedPlanPeople, type PlanPerson } from './useSharedPlans'
 import { useOpenSubjectPage } from '../subject/SubjectPageContext'
 import EventEditor from './EventEditor'
-import { replaceEvent } from './eventEdit'
+import { compactEvents, replaceEvent } from './eventEdit'
 import ImportPlan from './ImportPlan'
 import { findSubjectForEvent as findSubject } from './match'
-import { classKey, normGroup, type IcsEvent } from './parseIcs'
+import { classKey, normGroup, parseIcs, type IcsEvent } from './parseIcs'
+import { toIcs } from './toIcs'
 import { addDays, fromDateKey, toDateKey, toLocalIso, upcomingDayKeys } from './weeks'
 
 interface PlanDoc {
@@ -100,7 +101,34 @@ export default function PlanPage() {
   const todayKey = now.slice(0, 10)
   const tomorrowKey = toDateKey(addDays(fromDateKey(todayKey), 1))
 
-  // Reguły dopuszczają to tylko adminowi i tylko w planie udostępnionym przez właściciela (zmienia się wyłącznie lista zajęć).
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  // Admin: plan wybranej osoby jako plik .ics (do edycji w dowolnym programie) i wczytanie go z powrotem.
+  const exportIcs = () => {
+    const blob = new Blob([toIcs(plan?.events ?? [])], { type: 'text/calendar;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `plan-${(viewing?.username ?? 'uzytkownik').replace(/[^\w.-]+/g, '_')}.ics`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  const importIcs = async (file: File) => {
+    if (!viewing) return
+    setError(null)
+    try {
+      const events = parseIcs(await file.text())
+      if (events.length === 0) return setError('Nie znaleziono żadnych zajęć w tym pliku .ics.')
+      if (events.length > 1000) return setError('Za dużo zajęć w pliku (limit 1000).')
+      const had = plan?.events.length ?? 0
+      if (!confirm(`Zastąpić plan użytkownika ${viewing.username} (${had} zajęć) planem z pliku „${file.name}” (${events.length} zajęć)?\n\nPoprzedni plan zostanie nadpisany. Zrób najpierw eksport, jeśli chcesz mieć kopię.`)) return
+      await updateDoc(doc(db, 'plans', target), { events: compactEvents(events) })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Reguły dopuszczają to tylko adminowi (zmienia się wyłącznie lista zajęć).
   const saveEvents = async (index: number, event: IcsEvent | null) => {
     await updateDoc(doc(db, 'plans', target), { events: replaceEvent(plan?.events ?? [], index, event) })
     setEditing(null)
@@ -223,12 +251,32 @@ export default function PlanPage() {
       {picker}
       {editor}
       {adminEdit && (
-        <p className="bg-accent-soft text-accent mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl p-3 text-sm">
-          <span>Jako admin możesz poprawiać zajęcia w tym planie.</span>
-          <button className="btn-secondary" onClick={() => setEditing({ index: -1 })}>
-            Dodaj zajęcia
-          </button>
-        </p>
+        <div className="bg-accent-soft text-accent mb-3 space-y-2 rounded-xl p-3 text-sm">
+          <p>Jako admin możesz poprawiać zajęcia w tym planie albo wyeksportować go do .ics, edytować i wczytać z powrotem.</p>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-secondary" onClick={() => setEditing({ index: -1 })}>
+              Dodaj zajęcia
+            </button>
+            <button className="btn-secondary" onClick={exportIcs}>
+              Eksportuj .ics
+            </button>
+            <button className="btn-secondary" onClick={() => fileInput.current?.click()}>
+              Importuj .ics
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".ics,text/calendar"
+              className="sr-only"
+              aria-label="Plik .ics do zastąpienia planu"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = '' // pozwala wybrać ten sam plik ponownie
+                if (f) void importIcs(f)
+              }}
+            />
+          </div>
+        </div>
       )}
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
