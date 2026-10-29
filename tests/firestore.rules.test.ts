@@ -514,6 +514,22 @@ describe('exams: terminy mid-term, final exam i quiz', () => {
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ note: 'x'.repeat(301) })))
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ extra: 1 })))
   })
+  it('termin może dotyczyć grupy (forma + numer razem) albo być tylko dla autora', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/g1'), exam({ form: 'CW', group: '16' })))
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/g2'), exam({ form: 'WYK', group: '1', type: 'QUIZ' })))
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/p1'), exam({ onlyFor: 'bob' })))
+    // forma bez grupy i grupa bez formy
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ form: 'CW' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ group: '16' })))
+    // zła forma, zły numer grupy
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ form: 'INNA', group: '1' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ form: 'CW', group: 'a b/c' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ form: 'CW', group: 'x'.repeat(21) })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ form: 'CW', group: 16 })))
+    // „tylko dla” tylko na własny uid i bez grupy
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ onlyFor: 'alice' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ onlyFor: 'bob', form: 'CW', group: '16' })))
+  })
   it('wymaga istniejącego przedmiotu i podpisu własnym uid', async () => {
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ subjectId: 'brak' })))
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ createdBy: 'alice' })))

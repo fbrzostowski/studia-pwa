@@ -39,7 +39,7 @@ export default function MaterialCard({
   }
 
   return (
-    <div className="card p-4">
+    <div className="card h-full p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <span className="flex flex-wrap items-center gap-1.5">

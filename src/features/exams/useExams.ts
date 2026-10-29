@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useAuth } from '../../firebase/AuthContext'
+import { visibleTo } from './groups'
 import type { Exam } from './types'
 
-/** Wszystkie terminy zaliczeń (kolekcja jest mała); sortowanie robi logika widoku. */
+/** Terminy zaliczeń widoczne dla Ciebie (bez cudzych „tylko dla autora”); kolekcja jest mała, sortowanie robi logika widoku. */
 export function useExams() {
+  const { user } = useAuth()
   const [exams, setExams] = useState<Exam[]>([])
   const [error, setError] = useState<string | null>(null)
   useEffect(
@@ -16,5 +19,5 @@ export function useExams() {
       ),
     [],
   )
-  return { exams, error }
+  return { exams: exams.filter((e) => visibleTo(e, user!.uid)), error }
 }

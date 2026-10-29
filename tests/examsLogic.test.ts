@@ -112,3 +112,17 @@ describe('dominantType', () => {
     expect(t()).toBeUndefined()
   })
 })
+
+describe('suggestSlots z grupą', () => {
+  const subjects = [{ id: 's1', name: 'Język', kind: 'CW', createdBy: 'x' } as Subject]
+  const events: IcsEvent[] = [
+    { code: '', name: 'Język', form: 'CW', group: '16', start: '2026-11-05T09:50', end: '2026-11-05T11:30', room: 'S-18' },
+    { code: '', name: 'Język', form: 'CW', group: '4', start: '2026-11-05T08:00', end: '2026-11-05T09:40', room: 'G-205' },
+  ]
+  it('bez grupy podpowiada wszystkie lekcje dnia, z grupą tylko jej lekcję', () => {
+    const ids = new Set(['s1'])
+    expect(suggestSlots(events, subjects, ids, '2026-11-05').map((s) => s.room)).toEqual(['G-205', 'S-18'])
+    expect(suggestSlots(events, subjects, ids, '2026-11-05', { form: 'CW', group: '16' }).map((s) => s.room)).toEqual(['S-18'])
+    expect(suggestSlots(events, subjects, ids, '2026-11-05', { form: 'WYK', group: '16' })).toEqual([])
+  })
+})

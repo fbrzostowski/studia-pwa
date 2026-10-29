@@ -2,7 +2,7 @@ import { norm } from '../../lib/text'
 import { fromDateKey } from '../schedule/weeks'
 import type { Subject } from '../materials/types'
 import { findSubjectForEvent } from '../schedule/match'
-import type { IcsEvent } from '../schedule/parseIcs'
+import { normGroup, type IcsEvent } from '../schedule/parseIcs'
 import type { Exam } from './types'
 
 /** Ile dni od dziś do daty (ujemne = minęło). Daty to lokalne klucze YYYY-MM-DD, więc zmiana czasu nie przeszkadza. */
@@ -78,12 +78,14 @@ export function suggestSlots(
   subjects: Subject[],
   sectionSubjectIds: Set<string>,
   date: string,
+  scope?: { form: string; group: string }, // tylko lekcje tej grupy (np. termin dla ćwiczeń gr. 16)
 ): SlotSuggestion[] {
   if (!date) return []
   const seen = new Set<string>()
   const out: SlotSuggestion[] = []
   for (const e of events) {
     if (e.start.slice(0, 10) !== date) continue
+    if (scope && (e.form !== scope.form || normGroup(e.group) !== normGroup(scope.group))) continue
     const subject = findSubjectForEvent(subjects, e)
     if (!subject || !sectionSubjectIds.has(subject.id)) continue
     const slot: SlotSuggestion = {

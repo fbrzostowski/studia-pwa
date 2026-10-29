@@ -3,6 +3,7 @@ import { deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { fromDateKey } from '../schedule/weeks'
+import { examScope, scopeTitle } from './groups'
 import { countdown, daysUntil } from './logic'
 import { EXAM_LABEL, EXAM_STYLE, type Exam } from './types'
 import { SubjectLink } from '../subject/SubjectPageContext'
@@ -45,6 +46,11 @@ export default function ExamRow({
           )}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${EXAM_STYLE[e.type]}`}>{EXAM_LABEL[e.type]}</span>
+            {e.onlyFor ? (
+              <span className="badge bg-accent-soft text-accent">Tylko Ty</span>
+            ) : (
+              examScope(e) && <span className="badge bg-accent-soft text-accent">{scopeTitle(examScope(e)!)}</span>
+            )}
             <span className="text-sm font-medium">
               {fmtDate(e.date)}
               {e.time && `, ${e.time}`}

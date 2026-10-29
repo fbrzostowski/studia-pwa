@@ -3,7 +3,10 @@ import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/fires
 import { db } from '../../firebase/config'
 import { memberName, useAuth } from '../../firebase/AuthContext'
 import { useSheetLock } from '../../components/Sheet'
+import { useMemberships } from '../groups/hooks'
+import { normGroup } from '../schedule/parseIcs'
 import { usePlanEvents } from '../schedule/usePlan'
+import { defaultScope, groupsOf, myGroups, scopeTitle, type Scope } from './groups'
 import { suggestSlots, type ExamSection } from './logic'
 import { EXAM_LABEL, EXAM_TYPES, type Exam, type ExamType } from './types'
 
@@ -36,6 +39,23 @@ export default function ExamForm({
   const section = sections.find((s) => s.key === sectionKey)
   useSheetLock(busy)
 
+  // --- grupa: termin może dotyczyć jednej grupy, całego przedmiotu albo tylko autora (gdy nie ma grupy) ---
+  const memberships = useMemberships()
+  const subjectIds = useMemo(() => new Set((section?.subjects ?? []).map((s) => s.id)), [section])
+  const groups = useMemo(() => groupsOf(memberships, subjectIds), [memberships, subjectIds])
+  const mine = useMemo(() => myGroups(memberships, subjectIds, user!.uid), [memberships, subjectIds, user])
+  const keyOf = (s: Scope) => `${s.form}|${normGroup(s.group)}`
+  const initialScope = exam ? (exam.onlyFor ? 'me' : exam.form && exam.group ? keyOf({ form: exam.form, group: exam.group }) : 'all') : null
+  const [scopeKey, setScopeKey] = useState<string>(initialScope ?? 'me')
+  const scopeTouched = useRef(!!exam)
+  // nowy termin: domyślnie moja grupa (a bez grupy „tylko dla mnie”), dopóki użytkownik sam nie wybierze
+  useEffect(() => {
+    if (scopeTouched.current) return
+    const d = defaultScope(mine)
+    setScopeKey(d === 'me' ? 'me' : keyOf(d))
+  }, [mine]) // eslint-disable-line react-hooks/exhaustive-deps
+  const scope: Scope | undefined = groups.find((g) => keyOf(g) === scopeKey)
+
   // --- godzina i sala z planu: wpisujemy je jako wartości domyślne, ale użytkownik musi je zatwierdzić ---
   const events = usePlanEvents()
   const allSubjects = useMemo(() => sections.flatMap((s) => s.subjects), [sections])
@@ -49,8 +69,8 @@ export default function ExamForm({
     () =>
       exam || !events || !section
         ? []
-        : suggestSlots(events, allSubjects, new Set(section.subjects.map((s) => s.id)), date),
-    [events, allSubjects, section, date, exam],
+        : suggestSlots(events, allSubjects, new Set(section.subjects.map((s) => s.id)), date, scope),
+    [events, allSubjects, section, date, exam, scope],
   )
 
   // Termin dodawany z kalendarza (jest data, brak przedmiotu): wybierz przedmiot, który ma tego dnia lekcję.
@@ -104,6 +124,8 @@ export default function ExamForm({
       ...(time ? { time } : {}),
       ...(room.trim() ? { room: room.trim() } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
+      ...(scope ? { form: scope.form, group: scope.group } : {}),
+      ...(scopeKey === 'me' ? { onlyFor: exam?.createdBy ?? user!.uid } : {}),
       createdBy: exam?.createdBy ?? user!.uid,
       createdByName: exam?.createdByName ?? memberName(profile!).slice(0, 60),
       createdAt: exam?.createdAt ?? serverTimestamp(),
@@ -136,6 +158,35 @@ export default function ExamForm({
           </option>
         ))}
       </select>
+
+      <label className="block space-y-1 text-sm font-medium">
+        Dla kogo
+        <select
+          className="input"
+          value={scopeKey}
+          onChange={(e) => {
+            scopeTouched.current = true
+            setScopeKey(e.target.value)
+          }}
+          aria-label="Grupa, której dotyczy termin"
+        >
+          {groups.map((g) => (
+            <option key={keyOf(g)} value={keyOf(g)}>
+              {scopeTitle(g)}
+              {mine.some((m) => keyOf(m) === keyOf(g)) ? ' (Twoja grupa)' : ''}
+            </option>
+          ))}
+          <option value="all">Cały przedmiot (wszystkie grupy)</option>
+          <option value="me">Tylko dla mnie (bez grupy)</option>
+        </select>
+        <span className="text-muted block text-xs font-normal">
+          {scopeKey === 'me'
+            ? 'Ten termin zobaczysz tylko Ty. Przypisz grupę, jeśli ma być widoczny dla innych.'
+            : scopeKey === 'all'
+              ? 'Termin dla wszystkich osób z przedmiotu.'
+              : 'Widać go w zaliczeniach przy tej grupie; w kalendarzu Materiałów mają go tylko osoby z tej grupy.'}
+        </span>
+      </label>
 
       <div className="bg-bg border-line flex gap-1 rounded-xl border p-1" role="group" aria-label="Rodzaj zaliczenia">
         {EXAM_TYPES.map((t) => (

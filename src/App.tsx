@@ -12,6 +12,7 @@ import SettingsPage from './features/settings/SettingsPage'
 import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
+import Sheet from './components/Sheet'
 import SubjectPage from './features/subject/SubjectPage'
 import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
@@ -107,11 +108,18 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'subjects', label: 'Przedmioty', icon: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' },
 ]
 
+// Na telefonie w dolnym pasku są trzy główne zakładki, a pozostałe stron i ustawienia w menu („Menu”).
+const PRIMARY_TABS: Tab[] = ['plan', 'materials', 'exams']
+const MENU_ICON = 'M5 12h.01M12 12h.01M19 12h.01'
+const SETTINGS_ICON =
+  'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'
+
 // Panel zalogowanego, zatwierdzonego użytkownika: plan, materiały i ustawienia pod ikoną profilu.
 function Panel() {
   const { profile } = useAuth()
   const [tab, setTab] = useState<Tab>('plan')
   const [settings, setSettings] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [focusSubject, setFocusSubject] = useState<string | null>(null)
   const [subjectPage, setSubjectPage] = useState<{ id: string; person?: PlanPerson } | null>(null) // otwarta strona przedmiotu (nad bieżącą zakładką)
   const subjectId = subjectPage?.id ?? null
@@ -225,7 +233,7 @@ function Panel() {
         className="border-line bg-surface/90 fixed inset-x-0 bottom-0 z-10 flex border-t pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
         aria-label="Główna nawigacja"
       >
-        {TABS.map(({ id, label, icon }) => {
+        {TABS.filter((t) => PRIMARY_TABS.includes(t.id)).map(({ id, label, icon }) => {
           const active = !settings && tab === id
           return (
             <button
@@ -241,7 +249,58 @@ function Panel() {
             </button>
           )
         })}
+        <button
+          aria-current={settings || !PRIMARY_TABS.includes(tab)}
+          aria-haspopup="dialog"
+          aria-label={pending > 0 ? `Menu (${pending} wniosków o dostęp)` : 'Menu'}
+          onClick={() => setMenuOpen(true)}
+          className="text-muted aria-[current=true]:text-accent relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium"
+        >
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d={MENU_ICON} />
+          </svg>
+          Menu
+          {pending > 0 && <span className="bg-danger absolute top-1.5 left-1/2 ml-2 h-2.5 w-2.5 rounded-full" aria-hidden="true" />}
+        </button>
       </nav>
+
+      <Sheet open={menuOpen} title="Menu" onClose={() => setMenuOpen(false)}>
+        <ul className="space-y-1">
+          {TABS.filter((t) => !PRIMARY_TABS.includes(t.id)).map(({ id, label, icon }) => (
+            <li key={id}>
+              <button
+                aria-current={!settings && tab === id}
+                onClick={() => {
+                  setMenuOpen(false)
+                  go(id)
+                }}
+                className="hover:bg-accent-soft aria-[current=true]:bg-accent-soft aria-[current=true]:text-accent flex w-full items-center gap-3 rounded-xl p-3 text-left font-medium"
+              >
+                <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={icon} />
+                </svg>
+                {label}
+              </button>
+            </li>
+          ))}
+          <li>
+            <button
+              aria-current={settings}
+              onClick={() => {
+                setMenuOpen(false)
+                setSettings(true)
+              }}
+              className="hover:bg-accent-soft aria-[current=true]:bg-accent-soft aria-[current=true]:text-accent flex w-full items-center gap-3 rounded-xl p-3 text-left font-medium"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={SETTINGS_ICON} />
+              </svg>
+              Ustawienia
+              {pending > 0 && <span className="badge bg-danger ml-auto text-white">{pending}</span>}
+            </button>
+          </li>
+        </ul>
+      </Sheet>
     </>
   )
 }

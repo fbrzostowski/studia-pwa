@@ -2,16 +2,17 @@ import { useMemo, useState } from 'react'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import { useMemberships } from '../groups/hooks'
-import { KIND_LABEL } from '../materials/types'
 import { useSubjects } from '../materials/useSubjects'
 import { toDateKey } from '../schedule/weeks'
 import ExamCalendar from './ExamCalendar'
 import ExamForm from './ExamForm'
 import ExamRow from './ExamRow'
-import { groupExams, splitExams, type ExamSection } from './logic'
+import { groupExams, splitExams } from './logic'
 import TodoLists from './TodoLists'
-import { EXAM_LABEL, EXAM_STYLE, EXAM_TYPES, type Exam, type ExamType } from './types'
+import { type Exam, type ExamType } from './types'
 import { useExams } from './useExams'
+import { myGroups, relevantFor } from './groups'
+import { norm } from '../../lib/text'
 
 type View = 'calendar' | 'list' | 'todo'
 type FormState = { exam?: Exam; sectionKey?: string; type?: ExamType; date?: string } | null
@@ -30,19 +31,30 @@ export default function ExamsPage() {
   const memberships = useMemberships()
   const [view, setView] = useState<View>('calendar')
   const [form, setForm] = useState<FormState>(null)
+  const [otherGroups, setOtherGroups] = useState(false) // pokaż też terminy grup, do których nie należę
 
   const todayKey = toDateKey(new Date())
-  const mine = useMemo(
-    () => new Set(memberships.filter((m) => m.uid === user!.uid).map((m) => m.subjectId)),
-    [memberships, user],
-  )
-  const sections = useMemo(() => groupExams(subjects, exams, mine), [subjects, exams, mine])
   // formularze pozwalają wybrać każdy przedmiot, nie tylko moje
   const allSections = useMemo(() => groupExams(subjects, exams, new Set(subjects.map((s) => s.id))), [subjects, exams])
   const nameOf = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects])
   const emojiOf = useMemo(() => new Map(subjects.flatMap((s) => (s.emoji ? [[s.id, s.emoji] as const] : []))), [subjects])
   const known = useMemo(() => exams.filter((e) => nameOf.has(e.subjectId)), [exams, nameOf])
-  const { upcoming, past } = useMemo(() => splitExams(known, todayKey), [known, todayKey])
+  // Domyślnie tylko terminy dla mnie: cały przedmiot, moje grupy i moje prywatne. Grupy liczymy po wszystkich
+  // przedmiotach o tej samej nazwie (wykład i ćwiczenia to osobne przedmioty jednego kursu).
+  const relevant = useMemo(() => {
+    const idsByName = new Map<string, Set<string>>()
+    for (const sub of subjects) idsByName.set(norm(sub.name), (idsByName.get(norm(sub.name)) ?? new Set()).add(sub.id))
+    const cache = new Map<string, ReturnType<typeof myGroups>>()
+    const groupsFor = (subjectId: string) => {
+      const key = norm(nameOf.get(subjectId) ?? '')
+      if (!cache.has(key)) cache.set(key, myGroups(memberships, idsByName.get(key) ?? new Set(), user!.uid))
+      return cache.get(key)!
+    }
+    return known.filter((e) => relevantFor(e, groupsFor(e.subjectId)))
+  }, [known, subjects, nameOf, memberships, user])
+  const shownExams = otherGroups ? known : relevant
+  const hiddenCount = known.length - relevant.length
+  const { upcoming, past } = useMemo(() => splitExams(shownExams, todayKey), [shownExams, todayKey])
 
   const open = (state: NonNullable<FormState>) => {
     if (view === 'todo') setView('calendar')
@@ -75,6 +87,13 @@ export default function ExamsPage() {
         ))}
       </div>
 
+      {view !== 'todo' && (hiddenCount > 0 || otherGroups) && (
+        <label className="text-muted mt-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4" checked={otherGroups} onChange={(e) => setOtherGroups(e.target.checked)} />
+          Pokaż też terminy innych grup{hiddenCount > 0 ? ` (${hiddenCount})` : ''}
+        </label>
+      )}
+
       {subjects.length === 0 && (
         <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
           Najpierw dodaj przedmioty w zakładce Materiały albo zaimportuj plan z USOS.
@@ -100,7 +119,7 @@ export default function ExamsPage() {
       {subjects.length > 0 && view === 'calendar' && (
         <div className="mt-4">
           <ExamCalendar
-            exams={known}
+            exams={shownExams}
             nameOf={nameOf}
             emojiOf={emojiOf}
             todayKey={todayKey}
@@ -119,38 +138,20 @@ export default function ExamsPage() {
       {subjects.length > 0 && view === 'list' && (
         <>
           <section className="mt-6">
-            <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Najbliższe</h3>
+            <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Nadchodzące</h3>
             {upcoming.length === 0 ? (
               <p className="border-line text-muted rounded-2xl border border-dashed p-6 text-center text-sm">
                 Brak nadchodzących terminów. Dodaj pierwszy przyciskiem „+ Termin”.
               </p>
             ) : (
               <ul className="space-y-2">
-                {upcoming.slice(0, 5).map((e) => (
+                {upcoming.map((e) => (
                   <li key={e.id} className="bg-surface rounded-xl">
-                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
+                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
                   </li>
                 ))}
               </ul>
             )}
-          </section>
-
-          <section className="mt-8">
-            <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Przedmioty</h3>
-            <ul className="space-y-3">
-              {sections.map((sec) => (
-                <SubjectCard
-                  key={sec.key}
-                  sec={{ ...sec, exams: sec.exams.filter((e) => e.date >= todayKey) }}
-                  todayKey={todayKey}
-                  onAdd={(type) => open({ sectionKey: sec.key, type })}
-                  onEdit={(x) => open({ exam: x })}
-                />
-              ))}
-              {sections.length === 0 && (
-                <li className="text-muted text-sm">Nie należysz jeszcze do żadnego przedmiotu — zaimportuj plan w zakładce Plan.</li>
-              )}
-            </ul>
           </section>
 
           {past.length > 0 && (
@@ -161,7 +162,7 @@ export default function ExamsPage() {
               <ul className="mt-2 space-y-2">
                 {past.map((e) => (
                   <li key={e.id} className="bg-surface rounded-xl">
-                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
+                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
                   </li>
                 ))}
               </ul>
@@ -170,56 +171,5 @@ export default function ExamsPage() {
         </>
       )}
     </div>
-  )
-}
-
-function SubjectCard({
-  sec,
-  todayKey,
-  onAdd,
-  onEdit,
-}: {
-  sec: ExamSection
-  todayKey: string
-  onAdd: (type: ExamType) => void
-  onEdit: (e: Exam) => void
-}) {
-  return (
-    <li className="card p-4">
-      <h4 className="flex flex-wrap items-center gap-2 font-semibold">
-        {sec.name}
-        {[...new Set(sec.subjects.map((s) => s.kind))].map((k) => (
-          <span key={k} className="badge bg-accent-soft text-accent" title={KIND_LABEL[k]}>
-            {k}
-          </span>
-        ))}
-      </h4>
-      <div className="mt-3 space-y-3">
-        {EXAM_TYPES.map((t) => {
-          const list = sec.exams.filter((e) => e.type === t)
-          return (
-            <div key={t}>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`badge ${EXAM_STYLE[t]}`}>{EXAM_LABEL[t]}</span>
-                <button className="btn-ghost -mr-2 min-h-8 py-1 text-xs" onClick={() => onAdd(t)}>
-                  + Dodaj termin
-                </button>
-              </div>
-              {list.length === 0 ? (
-                <p className="text-muted mt-1.5 text-sm">Brak terminu.</p>
-              ) : (
-                <ul className="mt-2 space-y-2">
-                  {list.map((e) => (
-                    <li key={e.id}>
-                      <ExamRow e={e} todayKey={todayKey} onEdit={onEdit} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </li>
   )
 }

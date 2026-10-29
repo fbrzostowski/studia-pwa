@@ -34,6 +34,11 @@ export interface Exam {
   time?: string // HH:mm
   room?: string
   note?: string
+  /** Grupa zajęciowa, której dotyczy termin (forma + numer); brak = cały przedmiot. */
+  form?: string
+  group?: string
+  /** uid autora, gdy termin widzi tylko on (autor nie ma grupy w tym przedmiocie). */
+  onlyFor?: string
   createdBy: string
   createdByName?: string
   createdAt?: Timestamp

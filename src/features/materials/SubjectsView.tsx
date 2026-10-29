@@ -4,29 +4,30 @@ import { db } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import SubjectIcon from '../../components/SubjectIcon'
-import EmojiPicker from '../../components/EmojiPicker'
-import DeleteSubject from '../subject/DeleteSubject'
 import { useLiveSubjects } from '../schedule/useLive'
 import { SubjectShortcut, useOpenSubjectPage } from '../subject/SubjectPageContext'
 import { plural } from '../../lib/plural'
 import MaterialCard from './MaterialCard'
 import MaterialForm from './MaterialForm'
-import { setSubjectEmoji, useSubjects } from './useSubjects'
-import SubjectGroups from '../groups/SubjectGroups'
+import { useSubjects } from './useSubjects'
+import { useMemberships } from '../groups/hooks'
+import { groupsOf, myGroups, type Scope } from '../exams/groups'
+import GroupFilter from './GroupFilter'
+import { filterMaterials } from './filters'
 import AddSubjectForm from './AddSubjectForm'
-import { KIND_LABEL, type Material, type Subject } from './types'
+import { KIND_LABEL, type Material } from './types'
 
 export default function SubjectsView({ initialSubjectId = null }: { initialSubjectId?: string | null }) {
-  const { user, profile } = useAuth()
-  const isAdmin = profile?.role === 'admin'
+  const { user } = useAuth()
   const { subjects, error: subjectsError } = useSubjects()
   const [selected, setSelected] = useState<string | null>(initialSubjectId)
   const [allMaterials, setAllMaterials] = useState<Material[]>([])
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
-  const [pickingEmoji, setPickingEmoji] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const openSubjectPage = useOpenSubjectPage()
+  const memberships = useMemberships()
+  const [query, setQuery] = useState('')
+  const [picked, setPicked] = useState<Scope[] | null>(null) // null = domyślnie moje grupy
   const [localError, setError] = useState<string | null>(null)
   const error = localError ?? subjectsError
 
@@ -51,17 +52,16 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
     return c
   }, [allMaterials])
 
-  const canEdit = (ownerId: string) => isAdmin || ownerId === user!.uid
-
   const current = subjects.find((s) => s.id === selected)
+  // Grupy przedmiotu (z grup uczestników) i moje; domyślnie pokazujemy materiały mojej grupy, dopóki nie wybiorę inaczej.
+  const subjectIds = useMemo(() => new Set(current ? [current.id] : []), [current])
+  const groups = useMemo(() => groupsOf(memberships, subjectIds), [memberships, subjectIds])
+  const mine = useMemo(() => myGroups(memberships, subjectIds, user!.uid), [memberships, subjectIds, user])
+  const selectedGroups = picked ?? mine
+  const shown = useMemo(() => filterMaterials(materials, query, selectedGroups), [materials, query, selectedGroups])
   const live = useLiveSubjects(subjects)
   // Przedmiot trwającej lekcji jest pierwszy; sort jest stabilny, więc reszta zostaje alfabetycznie.
   const tiles = useMemo(() => [...subjects].sort((a, b) => Number(live.has(b.id)) - Number(live.has(a.id))), [subjects, live])
-
-  const setEmoji = async (s: Subject, emoji: string | null) => {
-    setPickingEmoji(false)
-    await setSubjectEmoji(s.id, emoji).catch((e) => setError(e.message))
-  }
 
   return (
     <div>
@@ -132,32 +132,15 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
       </Sheet>
 
       {current && (
-        <Sheet open={deleting} title="Usuń przedmiot" onClose={() => setDeleting(false)}>
-          {deleting && (
-            <DeleteSubject
-              subject={current}
-              onDone={() => {
-                setDeleting(false)
-                setSelected(null)
-              }}
-            />
-          )}
-        </Sheet>
-      )}
-
-      {current && (
-        <EmojiPicker
-          open={pickingEmoji}
-          subjectName={current.name}
-          current={current.emoji}
-          onPick={(e) => setEmoji(current, e)}
-          onClose={() => setPickingEmoji(false)}
-        />
-      )}
-
-      {current && (
         <section>
-          <button className="btn-ghost -ml-3 gap-1" onClick={() => setSelected(null)}>
+          <button
+            className="btn-ghost -ml-3 gap-1"
+            onClick={() => {
+              setSelected(null)
+              setQuery('')
+              setPicked(null)
+            }}
+          >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 18l-6-6 6-6" />
             </svg>
@@ -165,14 +148,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
           </button>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex min-w-0 items-center gap-2 text-xl font-semibold tracking-tight break-words">
-              <button
-                className="hover:bg-accent-soft -m-1 rounded-lg p-1"
-                onClick={() => setPickingEmoji(true)}
-                aria-label="Zmień ikonę przedmiotu"
-                title="Zmień ikonę"
-              >
-                <SubjectIcon emoji={current.emoji} size={30} />
-              </button>
+              <SubjectIcon emoji={current.emoji} size={30} />
               {current.name}
               {current.kind && (
                 <span className="badge bg-accent-soft text-accent ml-2 align-middle" title={KIND_LABEL[current.kind]}>
@@ -184,11 +160,6 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
               <button className="btn-secondary" onClick={() => openSubjectPage(current.id)}>
                 Strona przedmiotu
               </button>
-              {canEdit(current.createdBy) && (
-                <button className="btn-danger" onClick={() => setDeleting(true)}>
-                  Usuń przedmiot
-                </button>
-              )}
               {!adding && (
                 <button className="btn-primary" onClick={() => setAdding(true)}>
                   Dodaj materiał
@@ -197,19 +168,45 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
             </div>
           </div>
 
-          <SubjectGroups key={current.id} subject={current} />
-
-          <h3 className="text-muted mt-6 text-xs font-semibold tracking-wide uppercase">Materiały</h3>
           {adding && <MaterialForm subjectId={current.id} onDone={() => setAdding(false)} />}
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input min-h-10 flex-1 py-1.5"
+              type="search"
+              placeholder={`Szukaj w materiałach (${materials.length})…`}
+              aria-label="Szukaj w materiałach"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div className="sm:w-60">
+              <GroupFilter groups={groups} mine={mine} selected={selectedGroups} onChange={setPicked} />
+            </div>
+          </div>
 
           {materials.length === 0 ? (
             <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
               Brak materiałów w tym przedmiocie.
             </p>
+          ) : shown.length === 0 ? (
+            <p className="border-line text-muted mt-4 rounded-2xl border border-dashed p-8 text-center text-sm">
+              Nic nie pasuje do wyszukiwania i wybranych grup.{' '}
+              {(query || selectedGroups.length > 0) && (
+                <button
+                  className="text-accent underline"
+                  onClick={() => {
+                    setQuery('')
+                    setPicked([])
+                  }}
+                >
+                  Pokaż wszystko
+                </button>
+              )}
+            </p>
           ) : (
-            <ul className="mt-4 space-y-3">
-              {materials.map((m) => (
-                <li key={m.id}>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2" aria-label="Materiały">
+              {shown.map((m) => (
+                <li key={m.id} className="min-w-0">
                   <MaterialCard m={m} />
                 </li>
               ))}

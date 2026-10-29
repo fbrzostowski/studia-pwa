@@ -14,6 +14,7 @@ import type { IcsEvent } from '../schedule/parseIcs'
 import { usePlanEvents } from '../schedule/usePlan'
 import { addDays, fromDateKey, monthWeeks, startOfWeek, toDateKey, weekKeys } from '../schedule/weeks'
 import { SubjectLink } from '../subject/SubjectPageContext'
+import { myGroups, relevantFor } from '../exams/groups'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -66,11 +67,14 @@ export default function CalendarView({ onOpenSubject }: { onOpenSubject: (id: st
     for (const e of exams) {
       const name = subjectName.get(e.subjectId)
       if (!name || !mine.has(norm(name))) continue
+      // termin grupy tylko dla osób z tej grupy (grupy liczymy po wszystkich przedmiotach o tej nazwie)
+      const sameName = new Set(subjects.filter((s) => norm(s.name) === norm(name)).map((s) => s.id))
+      if (!relevantFor(e, myGroups(memberships, sameName, user!.uid))) continue
       m.set(e.date, [...(m.get(e.date) ?? []), e])
     }
     for (const list of m.values()) list.sort((a, b) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99'))
     return m
-  }, [exams, memberships, subjectName, user])
+  }, [exams, memberships, subjectName, subjects, user])
 
   const notesByLesson = useMemo(() => {
     const m = new Map<string, Material[]>()
