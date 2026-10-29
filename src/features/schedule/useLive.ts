@@ -12,9 +12,9 @@ export interface LiveLesson {
   room?: string
 }
 
-/** Przedmioty, których lekcja z Twojego planu trwa właśnie teraz (id przedmiotu → lekcja). Odświeża się co pół minuty. */
-export function useLiveSubjects(subjects: Subject[]) {
-  const events = usePlanEvents()
+/** Przedmioty, których lekcja z planu (Twojego albo osoby `uid`) trwa właśnie teraz (id przedmiotu → lekcja). Odświeża się co pół minuty. */
+export function useLiveSubjects(subjects: Subject[], uid?: string) {
+  const events = usePlanEvents(uid)
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   useEffect(() => {
     const t = setInterval(() => setNow(toLocalIso(new Date())), 30_000)

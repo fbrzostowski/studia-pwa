@@ -1,7 +1,11 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import type { PlanPerson } from '../schedule/useSharedPlans'
 
-/** Otwiera stronę przedmiotu (o danym id) z dowolnego miejsca aplikacji; dostarcza ją panel w App. */
-const OpenSubjectCtx = createContext<(id: string) => void>(() => {})
+/**
+ * Otwiera stronę przedmiotu (o danym id) z dowolnego miejsca aplikacji; dostarcza ją panel w App.
+ * Z `person` strona pokazuje dane tej osoby (jej plan, grupy), np. gdy oglądasz cudzy plan.
+ */
+const OpenSubjectCtx = createContext<(id: string, person?: PlanPerson) => void>(() => {})
 export const SubjectPageProvider = OpenSubjectCtx.Provider
 export const useOpenSubjectPage = () => useContext(OpenSubjectCtx)
 

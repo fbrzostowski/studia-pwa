@@ -13,6 +13,7 @@ import { findSubjectForEvent } from '../schedule/match'
 import { classKey, normGroup, summarizeClasses, type IcsEvent } from '../schedule/parseIcs'
 import { usePlanEvents } from '../schedule/usePlan'
 import { useLiveSubjects } from '../schedule/useLive'
+import type { PlanPerson } from '../schedule/useSharedPlans'
 import { fromDateKey, toLocalIso } from '../schedule/weeks'
 
 const FORM_TITLE: Record<string, string> = { WYK: 'Wykłady', CW: 'Ćwiczenia', KON: 'Konwersatorium', LAB: 'Laboratorium' }
@@ -26,16 +27,18 @@ const day = (key: string, long = false) =>
  */
 export default function SubjectPage({
   subjectId,
+  person,
   onBack,
   onOpenMaterials,
 }: {
   subjectId: string
+  person?: PlanPerson // czyj plan oglądasz; brak = Twój
   onBack: () => void
   onOpenMaterials: () => void
 }) {
   const { subjects } = useSubjects()
   const subject = subjects.find((s) => s.id === subjectId)
-  const events = usePlanEvents()
+  const events = usePlanEvents(person?.uid)
   if (!subject) {
     return (
       <div>
@@ -44,7 +47,7 @@ export default function SubjectPage({
       </div>
     )
   }
-  return <Page subject={subject} events={events ?? []} onBack={onBack} onOpenMaterials={onOpenMaterials} />
+  return <Page subject={subject} events={events ?? []} person={person} onBack={onBack} onOpenMaterials={onOpenMaterials} />
 }
 
 function BackButton({ onBack }: { onBack: () => void }) {
@@ -61,18 +64,20 @@ function BackButton({ onBack }: { onBack: () => void }) {
 function Page({
   subject,
   events,
+  person,
   onBack,
   onOpenMaterials,
 }: {
   subject: Subject
   events: IcsEvent[]
+  person?: PlanPerson
   onBack: () => void
   onOpenMaterials: () => void
 }) {
   const { user } = useAuth()
   const memberships = useMemberships()
   const classDocs = useClassDocs()
-  const live = useLiveSubjects([subject]).get(subject.id)
+  const live = useLiveSubjects([subject], person?.uid).get(subject.id)
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const now = toLocalIso(new Date())
@@ -81,7 +86,10 @@ function Page({
   const mine = useMemo(() => events.filter((e) => findSubjectForEvent([subject], e)?.id === subject.id), [events, subject])
   const hours = useMemo(() => summarizeHours(mine, now), [mine, now])
   const myClasses = useMemo(() => summarizeClasses(mine), [mine])
-  const members = memberships.filter((m) => m.subjectId === subject.id && m.uid !== user!.uid)
+  // Grupy i osoby liczymy względem właściciela oglądanego planu (Ty też możesz być wśród „innych”).
+  const ownerUid = person?.uid ?? user!.uid
+  const members = memberships.filter((m) => m.subjectId === subject.id && m.uid !== ownerUid)
+  const who = (m: { uid: string; username: string }) => (m.uid === user!.uid ? `${m.username} (Ty)` : m.username)
 
   const inGroup = (form: string, group: string) =>
     members.filter((m) => (m.classes ?? []).some((c) => c.form === form && normGroup(c.group) === normGroup(group)))
@@ -95,6 +103,12 @@ function Page({
       <BackButton onBack={onBack} />
 
       {error && <p className="text-danger mt-2 text-sm">{error}</p>}
+      {person && (
+        <p className="bg-accent-soft text-accent mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm">
+          <Avatar name={person.username} photoURL={person.photoURL} size={20} />
+          Dane z planu: <strong>{person.username}</strong>
+        </p>
+      )}
 
       <div className="mt-1 flex items-start gap-3">
         <button
@@ -185,10 +199,12 @@ function Page({
 
       <section className="mt-5" aria-labelledby="grp-h">
         <h3 id="grp-h" className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
-          Z kim masz ten przedmiot
+          {person ? `Z kim ma ten przedmiot ${person.username}` : 'Z kim masz ten przedmiot'}
         </h3>
 
-        {myClasses.length === 0 && <p className="text-muted text-sm">Brak Twoich zajęć z tego przedmiotu w planie.</p>}
+        {myClasses.length === 0 && (
+          <p className="text-muted text-sm">{person ? `${person.username} nie ma zajęć z tego przedmiotu w planie.` : 'Brak Twoich zajęć z tego przedmiotu w planie.'}</p>
+        )}
 
         <div className="space-y-3">
           {myClasses.map((c) => {
@@ -207,7 +223,7 @@ function Page({
                     {people.map((m) => (
                       <li key={m.uid} className="flex items-center gap-2 text-sm">
                         <Avatar name={m.username} photoURL={m.photoURL} size={32} />
-                        {m.username}
+                        {who(m)}
                       </li>
                     ))}
                   </ul>
@@ -224,7 +240,7 @@ function Page({
               {others.map((m) => (
                 <li key={m.uid} className="flex items-center gap-2 text-sm">
                   <Avatar name={m.username} photoURL={m.photoURL} size={24} />
-                  {m.username}
+                  {who(m)}
                 </li>
               ))}
             </ul>

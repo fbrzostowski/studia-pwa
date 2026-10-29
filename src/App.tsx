@@ -13,6 +13,7 @@ import InstallHint from './components/InstallHint'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import SubjectPage from './features/subject/SubjectPage'
+import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
 
 const logo = `${import.meta.env.BASE_URL}favicon.svg`
@@ -112,13 +113,14 @@ function Panel() {
   const [tab, setTab] = useState<Tab>('plan')
   const [settings, setSettings] = useState(false)
   const [focusSubject, setFocusSubject] = useState<string | null>(null)
-  const [subjectId, setSubjectId] = useState<string | null>(null) // otwarta strona przedmiotu (nad bieżącą zakładką)
+  const [subjectPage, setSubjectPage] = useState<{ id: string; person?: PlanPerson } | null>(null) // otwarta strona przedmiotu (nad bieżącą zakładką)
+  const subjectId = subjectPage?.id ?? null
   const isAdmin = profile!.role === 'admin'
   const pending = usePendingCount(isAdmin)
   const initial = shownName(profile!).charAt(0).toUpperCase()
   const go = (t: Tab) => {
     setFocusSubject(null)
-    setSubjectId(null)
+    setSubjectPage(null)
     setTab(t)
     setSettings(false)
   }
@@ -183,18 +185,19 @@ function Panel() {
       <main className="mx-auto max-w-3xl px-4 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-8">
         <InstallHint />
         <SubjectPageProvider
-          value={(id) => {
+          value={(id, person) => {
             setSettings(false)
-            setSubjectId(id)
+            setSubjectPage({ id, person })
           }}
         >
           {subjectId && !settings && (
             <SubjectPage
               subjectId={subjectId}
-              onBack={() => setSubjectId(null)}
+              person={subjectPage?.person}
+              onBack={() => setSubjectPage(null)}
               onOpenMaterials={() => {
                 setFocusSubject(subjectId)
-                setSubjectId(null)
+                setSubjectPage(null)
                 setTab('materials')
               }}
             />

@@ -358,7 +358,7 @@ export default function PlanPage() {
                     return (
                       <li key={`${e.start}-${e.code}-${e.form}-${i}`} className="relative">
                         {subject ? (
-                          <button className={`${cls} hover:bg-accent-soft`} onClick={() => openSubjectPage(subject.id)}>
+                          <button className={`${cls} hover:bg-accent-soft`} onClick={() => openSubjectPage(subject.id, viewing ?? undefined)}>
                             {body}
                           </button>
                         ) : (
