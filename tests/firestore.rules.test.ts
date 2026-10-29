@@ -246,66 +246,56 @@ describe('textbooks: zapis tylko przez Admin SDK', () => {
   })
 })
 
-describe('plans: udostępnianie planu innym', () => {
-  const plan = (shared?: unknown) => ({ events: [{ name: 'A' }], ...(shared === undefined ? {} : { shared }) })
+describe('plans: wgląd w cudze plany', () => {
+  const plan = () => ({ events: [{ name: 'A' }], fileName: 'a.ics' })
+  const seed = () => env.withSecurityRulesDisabled(async (ctx) => setDoc(doc(ctx.firestore(), 'plans/alice'), plan()))
 
-  it('plan jest prywatny, dopóki właściciel go nie udostępni', async () => {
-    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan()))
-    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
-    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(false)))
-    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
-  })
-  it('udostępniony plan czytają zatwierdzeni, ale nikt poza właścicielem go nie zmienia', async () => {
-    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(true)))
+  it('każdy zatwierdzony czyta cudzy plan, także nieistniejący (bez błędu)', async () => {
+    await seed()
     await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertSucceeds(getDoc(doc(as('carol'), 'plans/alice')))
     await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
+    await assertSucceeds(getDoc(doc(as('bob'), 'plans/nikt'))) // brak planu: exists() == false
+  })
+  it('oczekujący, odrzucony i niezalogowany nie czytają planów', async () => {
+    await seed()
     await assertFails(getDoc(doc(as('pending'), 'plans/alice')))
     await assertFails(getDoc(doc(as('rejected'), 'plans/alice')))
     await assertFails(getDoc(doc(anon(), 'plans/alice')))
-    await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan(true)))
-    await assertFails(updateDoc(doc(as('bob'), 'plans/alice'), { shared: false }))
+  })
+  it('zapisuje i usuwa tylko właściciel; zwykły użytkownik nie rusza cudzego planu', async () => {
+    await seed()
+    await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan()))
+    await assertFails(updateDoc(doc(as('bob'), 'plans/alice'), { events: [] }))
     await assertFails(deleteDoc(doc(as('bob'), 'plans/alice')))
     await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
-  })
-  it('wycofanie zgody zamyka dostęp zwykłym użytkownikom (admin ma go zawsze), a scalanie nie gubi flagi', async () => {
-    await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(true)))
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), { events: [] }, { merge: true })) // ponowny import
-    await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
-    await assertSucceeds(updateDoc(doc(as('alice'), 'plans/alice'), { shared: false }))
-    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
-  })
-  it('flaga shared musi być wartością logiczną; cudzy brak planu to odmowa', async () => {
-    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), plan('tak')))
-    await assertFails(setDoc(doc(as('alice'), 'plans/alice'), { shared: true })) // bez events
-    await assertFails(getDoc(doc(as('bob'), 'plans/alice'))) // nie istnieje
   })
 })
 
-describe('plans: admin czyta i poprawia zajęcia w każdym planie', () => {
-  const seed = async (shared: boolean | undefined) =>
+describe('plans: admin poprawia zajęcia w każdym planie', () => {
+  const seed = async () =>
     env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'plans/alice'), { events: [{ name: 'A' }], fileName: 'a.ics', ...(shared === undefined ? {} : { shared }) })
+      await setDoc(doc(ctx.firestore(), 'plans/alice'), { events: [{ name: 'A' }], fileName: 'a.ics' })
     })
 
-  it('admin czyta i zmienia zajęcia w planie niezależnie od zgody właściciela', async () => {
-    for (const shared of [true, false, undefined]) {
-      await seed(shared)
-      await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
-      await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }, { name: 'C' }] }))
-    }
+  it('admin zmienia listę zajęć w cudzym planie', async () => {
+    await seed()
+    await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }, { name: 'C' }] }))
+    await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [] }))
   })
   it('admin nie rusza niczego poza zajęciami i nie zakłada ani nie usuwa cudzego planu', async () => {
-    await seed(true)
-    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [], shared: false }))
+    await seed()
     await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [], fileName: 'x.ics' }))
-    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { shared: false }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [], importedAt: 1 }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { fileName: 'x.ics' }))
     await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: 'x' }))
     await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: Array.from({ length: 1001 }, () => ({ name: 'x' })) }))
     await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
     await assertFails(setDoc(doc(as('admin'), 'plans/nowy'), { events: [] }))
   })
-  it('zwykły użytkownik nie edytuje cudzego, nawet udostępnionego planu', async () => {
-    await seed(true)
+  it('zwykły użytkownik nie edytuje cudzego planu, choć może go czytać', async () => {
+    await seed()
     await assertFails(updateDoc(doc(as('bob'), 'plans/alice'), { events: [] }))
     await assertFails(updateDoc(doc(as('pending'), 'plans/alice'), { events: [] }))
   })
@@ -320,13 +310,14 @@ describe('plans: osobisty plan zajęć', () => {
     await assertSucceeds(setDoc(doc(as('alice'), 'plans/alice'), plan(5)))
     await assertSucceeds(deleteDoc(doc(as('alice'), 'plans/alice')))
   })
-  it('cudzy nieudostępniony plan czyta tylko admin; nikt poza właścicielem go nie zapisuje ani nie usuwa', async () => {
+  it('cudzy plan czytają wszyscy zatwierdzeni, a zapisuje i usuwa go tylko właściciel', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'plans/alice'), plan())
     })
-    await assertFails(getDoc(doc(as('bob'), 'plans/alice')))
+    await assertSucceeds(getDoc(doc(as('bob'), 'plans/alice')))
     await assertSucceeds(getDoc(doc(as('admin'), 'plans/alice')))
     await assertFails(setDoc(doc(as('bob'), 'plans/alice'), plan()))
+    await assertFails(deleteDoc(doc(as('bob'), 'plans/alice')))
     await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
   })
   it('pending, rejected i anonim nie mają planu', async () => {
@@ -489,7 +480,7 @@ describe('materials: podpięcie do lekcji', () => {
   })
 })
 
-describe('exams: terminy mid-term i final exam', () => {
+describe('exams: terminy mid-term, final exam i quiz', () => {
   const exam = (over: Record<string, unknown> = {}) => ({
     subjectId: 's1',
     type: 'MID',
@@ -503,15 +494,18 @@ describe('exams: terminy mid-term i final exam', () => {
     ...over,
   })
 
-  it('zatwierdzony dodaje mid-term i final exam do istniejącego przedmiotu', async () => {
+  it('zatwierdzony dodaje mid-term, final exam i quiz do istniejącego przedmiotu', async () => {
     await assertSucceeds(setDoc(doc(as('bob'), 'exams/a'), exam()))
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/q1'), exam({ type: 'QUIZ' })))
+    await assertSucceeds(setDoc(doc(as('bob'), 'exams/q2'), exam({ type: 'QUIZ', date: '2026-11-17' }))) // quizów może być wiele
     // tylko pola obowiązkowe: godzina, sala i uwagi są opcjonalne
     await assertSucceeds(
       setDoc(doc(as('bob'), 'exams/b'), { subjectId: 's1', type: 'FIN', date: '2026-12-15', createdBy: 'bob' }),
     )
   })
   it('odrzuca zły typ, datę, godzinę, za długie pola i obce pola', async () => {
-    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ type: 'QUIZ' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ type: 'EXAM' })))
+    await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ type: 'quiz' })))
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ date: '10.11.2026' })))
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ date: 20261110 })))
     await assertFails(setDoc(doc(as('bob'), 'exams/x'), exam({ time: '25:00' })))

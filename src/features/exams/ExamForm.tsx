@@ -7,7 +7,7 @@ import { usePlanEvents } from '../schedule/usePlan'
 import { suggestSlots, type ExamSection } from './logic'
 import { EXAM_LABEL, EXAM_TYPES, type Exam, type ExamType } from './types'
 
-/** Dodawanie i edycja terminu mid-term / final exam. */
+/** Dodawanie i edycja terminu: mid-term, final exam albo quiz. */
 export default function ExamForm({
   sections,
   exam,

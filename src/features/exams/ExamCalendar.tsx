@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import MonthGrid, { dayTitle, monthTitle } from '../../components/MonthGrid'
 import { addDays, toDateKey } from '../schedule/weeks'
 import ExamRow from './ExamRow'
-import { EXAM_LABEL, type Exam } from './types'
+import { EXAM_DOT, EXAM_LABEL, EXAM_TYPES, type Exam } from './types'
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {
   return (
@@ -52,12 +52,11 @@ export default function ExamCalendar({
       </div>
       <div className="mt-1 flex items-center justify-between gap-2">
         <p className="text-muted flex items-center gap-3 text-xs">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> {EXAM_LABEL.MID}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-3.5 rounded-full bg-rose-500" /> {EXAM_LABEL.FIN}
-          </span>
+          {EXAM_TYPES.map((t) => (
+            <span key={t} className="flex items-center gap-1">
+              <span className={`h-2 rounded-full ${EXAM_DOT[t]}`} /> {EXAM_LABEL[t]}
+            </span>
+          ))}
         </p>
         <button
           className="btn-ghost"
@@ -82,7 +81,7 @@ export default function ExamCalendar({
             markers: list.slice(0, 4).map((e) => (
               <span
                 key={e.id}
-                className={`h-1.5 rounded-full ${e.type === 'MID' ? 'w-1.5 bg-amber-500' : 'w-3 bg-rose-500'}`}
+                className={`h-1.5 rounded-full ${EXAM_DOT[e.type]}`}
               />
             )),
           }

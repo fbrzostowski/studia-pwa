@@ -11,8 +11,8 @@ export interface PlanPerson {
 }
 
 /**
- * Osoby, które udostępniły swój plan. Listy `plans` nie da się zapytać (reguły sprawdzają każdy dokument osobno),
- * więc bierzemy kandydatów z członkostw przedmiotów i dla każdego próbujemy odczytać plan; odmowa = nie udostępnia.
+ * Osoby, które mają zaimportowany plan (czytają go wszyscy zatwierdzeni). Kandydatów bierzemy z członkostw
+ * przedmiotów, bo plan importuje się razem z przypisaniem do przedmiotów, i sprawdzamy, czy ich dokument planu istnieje.
  */
 export function useSharedPlanPeople() {
   const { user } = useAuth()

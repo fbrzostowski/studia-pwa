@@ -56,7 +56,7 @@ export default function PlanPage() {
   const [limit, setLimit] = useState(PAGE_DAYS)
   const [now, setNow] = useState(() => toLocalIso(new Date()))
   const [importing, setImporting] = useState(false)
-  const [viewing, setViewing] = useState<PlanPerson | null>(null) // null = mój plan; inaczej plan udostępniony przez tę osobę
+  const [viewing, setViewing] = useState<PlanPerson | null>(null) // null = mój plan; inaczej plan wybranej osoby (tylko do odczytu)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState<{ index: number; event?: IcsEvent } | null>(null) // admin poprawia zajęcia cudzego planu
   const { people } = useSharedPlanPeople()
@@ -72,8 +72,7 @@ export default function PlanPage() {
       doc(db, 'plans', target),
       (snap) => setPlan(snap.exists() ? (snap.data() as PlanDoc) : null),
       (e) => {
-        // cudzy plan, którego właściciel nie udostępnia (albo już wycofał zgodę)
-        setError(viewing ? `${viewing.username} nie udostępnia planu.` : e.message)
+        setError(e.message)
         setPlan(null)
       },
     )
@@ -188,8 +187,8 @@ export default function PlanPage() {
       </ul>
       <p className="text-muted mt-3 text-xs">
         {profile?.role === 'admin'
-          ? 'Jako admin widzisz plany wszystkich osób i możesz poprawiać w nich zajęcia.'
-          : 'Widać tylko osoby, które udostępniły plan (Ustawienia → Prywatność). Plan innej osoby jest tylko do odczytu.'}
+          ? 'Widzisz plany wszystkich osób i jako admin możesz poprawiać w nich zajęcia.'
+          : 'Widać osoby, które zaimportowały plan. Plan innej osoby jest tylko do odczytu.'}
       </p>
     </Sheet>
   )

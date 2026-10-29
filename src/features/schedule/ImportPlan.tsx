@@ -78,7 +78,7 @@ export default function ImportPlan({ subjects, onDone }: { subjects: Subject[]; 
         const compact = events.map((e) =>
           Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined && v !== '')),
         )
-        // merge: ponowny import nie kasuje zgody na udostępnianie planu (pole `shared`)
+        // merge: ponowny import podmienia zajęcia, ale nie kasuje innych pól dokumentu
         batch.set(doc(db, 'plans', user!.uid), { events: compact, fileName, importedAt: serverTimestamp() }, { merge: true })
         for (const { subjectId, row } of joins) {
           const rowEvents = eventsForCandidate(events, row)
