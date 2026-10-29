@@ -100,3 +100,9 @@ export function suggestSlots(
   }
   return out.sort((a, b) => a.time.localeCompare(b.time) || a.form.localeCompare(b.form))
 }
+
+/** Który rodzaj zaliczenia „barwi” dzień, gdy jest ich kilka: final exam, potem mid-term, potem quiz. */
+export function dominantType(exams: Pick<Exam, 'type'>[]): Exam['type'] | undefined {
+  for (const t of ['FIN', 'MID', 'QUIZ'] as const) if (exams.some((e) => e.type === t)) return t
+  return undefined
+}

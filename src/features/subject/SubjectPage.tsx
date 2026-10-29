@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar'
 import EmojiPicker from '../../components/EmojiPicker'
+import Sheet from '../../components/Sheet'
 import SubjectIcon from '../../components/SubjectIcon'
 import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
 import SubjectGroups from '../groups/SubjectGroups'
+import DeleteSubject from './DeleteSubject'
 import { useClassDocs, useMemberships } from '../groups/hooks'
 import { KIND_LABEL, type Subject } from '../materials/types'
 import { setSubjectEmoji, useSubjects } from '../materials/useSubjects'
@@ -74,7 +76,9 @@ function Page({
   onBack: () => void
   onOpenMaterials: () => void
 }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const [deleting, setDeleting] = useState(false)
+  const canDeleteSubject = profile?.role === 'admin' || subject.createdBy === user!.uid
   const memberships = useMemberships()
   const classDocs = useClassDocs()
   const live = useLiveSubjects([subject], person?.uid).get(subject.id)
@@ -256,6 +260,25 @@ function Page({
         <summary className="text-accent cursor-pointer text-sm font-medium">Wszystkie grupy i prowadzący</summary>
         <SubjectGroups subject={subject} />
       </details>
+
+      {canDeleteSubject && (
+        <>
+          <button className="btn-danger mt-8 w-full" onClick={() => setDeleting(true)}>
+            Usuń przedmiot
+          </button>
+          <Sheet open={deleting} title="Usuń przedmiot" onClose={() => setDeleting(false)}>
+            {deleting && (
+              <DeleteSubject
+                subject={subject}
+                onDone={() => {
+                  setDeleting(false)
+                  onBack()
+                }}
+              />
+            )}
+          </Sheet>
+        </>
+      )}
     </div>
   )
 }

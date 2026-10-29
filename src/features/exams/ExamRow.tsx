@@ -13,11 +13,13 @@ export const fmtDate = (k: string) =>
 export default function ExamRow({
   e,
   subjectName,
+  emoji,
   todayKey,
   onEdit,
 }: {
   e: Exam
   subjectName?: string
+  emoji?: string
   todayKey: string
   onEdit: (e: Exam) => void
 }) {
@@ -37,6 +39,7 @@ export default function ExamRow({
         <div className="min-w-0">
           {subjectName && (
             <p className="mb-1 font-medium break-words">
+              {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}
               <SubjectLink id={e.subjectId}>{subjectName}</SubjectLink>
             </p>
           )}

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import MonthGrid, { dayTitle, monthTitle } from '../../components/MonthGrid'
 import { addDays, toDateKey } from '../schedule/weeks'
 import ExamRow from './ExamRow'
-import { EXAM_DOT, EXAM_LABEL, EXAM_TYPES, type Exam } from './types'
+import { dominantType } from './logic'
+import { EXAM_DOT, EXAM_LABEL, EXAM_TINT, EXAM_TYPES, type Exam } from './types'
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {
   return (
@@ -16,12 +17,14 @@ function Chevron({ dir }: { dir: 'left' | 'right' }) {
 export default function ExamCalendar({
   exams,
   nameOf,
+  emojiOf,
   todayKey,
   onEdit,
   onAdd,
 }: {
   exams: Exam[]
   nameOf: Map<string, string>
+  emojiOf: Map<string, string>
   todayKey: string
   onEdit: (e: Exam) => void
   onAdd: (dateKey: string) => void
@@ -76,14 +79,27 @@ export default function ExamCalendar({
         onSelect={setSelected}
         cell={(k) => {
           const list = byDay.get(k) ?? []
+          const dominant = dominantType(list)
           return {
-            label: list.length ? `${list.length} zaliczeń: ${list.map((e) => EXAM_LABEL[e.type]).join(', ')}` : 'brak terminów',
-            markers: list.slice(0, 4).map((e) => (
-              <span
-                key={e.id}
-                className={`h-1.5 rounded-full ${EXAM_DOT[e.type]}`}
-              />
-            )),
+            label: list.length
+              ? `${list.length} zaliczeń: ${list.map((e) => `${nameOf.get(e.subjectId) ?? ''} (${EXAM_LABEL[e.type]})`).join(', ')}`
+              : 'brak terminów',
+            // cały dzień w kolorze rodzaju zaliczenia (przy kilku wygrywa ważniejsze)
+            tint: dominant && EXAM_TINT[dominant],
+            // etykieta: emoji przedmiotu, a gdy go nie ma, kolorowa kropka rodzaju
+            markers: [
+              ...list.slice(0, 3).map((e) => {
+                const emoji = emojiOf.get(e.subjectId)
+                return emoji ? (
+                  <span key={e.id} aria-hidden="true" className="text-base leading-none">
+                    {emoji}
+                  </span>
+                ) : (
+                  <span key={e.id} className={`h-1.5 rounded-full ${EXAM_DOT[e.type]}`} />
+                )
+              }),
+              ...(list.length > 3 ? [<span key="more" className="text-muted text-[10px] leading-none font-semibold">+{list.length - 3}</span>] : []),
+            ],
           }
         }}
       />
@@ -100,7 +116,7 @@ export default function ExamCalendar({
           <ul className="space-y-2">
             {dayExams.map((e) => (
               <li key={e.id} className="bg-surface rounded-xl">
-                <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} todayKey={todayKey} onEdit={onEdit} />
+                <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={onEdit} />
               </li>
             ))}
           </ul>

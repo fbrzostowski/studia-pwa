@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import SubjectIcon from '../../components/SubjectIcon'
 import EmojiPicker from '../../components/EmojiPicker'
+import DeleteSubject from '../subject/DeleteSubject'
 import { useLiveSubjects } from '../schedule/useLive'
 import { SubjectShortcut, useOpenSubjectPage } from '../subject/SubjectPageContext'
 import { plural } from '../../lib/plural'
@@ -24,6 +25,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   const [adding, setAdding] = useState(false)
   const [addingSubject, setAddingSubject] = useState(false)
   const [pickingEmoji, setPickingEmoji] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const openSubjectPage = useOpenSubjectPage()
   const [localError, setError] = useState<string | null>(null)
   const error = localError ?? subjectsError
@@ -50,12 +52,6 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
   }, [allMaterials])
 
   const canEdit = (ownerId: string) => isAdmin || ownerId === user!.uid
-
-  const removeSubject = async (s: Subject) => {
-    if (!confirm(`Usunąć przedmiot „${s.name} (${s.kind})”? Materiały z tego przedmiotu zostaną w bazie.`)) return
-    await deleteDoc(doc(db, 'subjects', s.id)).catch((e) => setError(e.message))
-    if (selected === s.id) setSelected(null)
-  }
 
   const current = subjects.find((s) => s.id === selected)
   const live = useLiveSubjects(subjects)
@@ -136,6 +132,20 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
       </Sheet>
 
       {current && (
+        <Sheet open={deleting} title="Usuń przedmiot" onClose={() => setDeleting(false)}>
+          {deleting && (
+            <DeleteSubject
+              subject={current}
+              onDone={() => {
+                setDeleting(false)
+                setSelected(null)
+              }}
+            />
+          )}
+        </Sheet>
+      )}
+
+      {current && (
         <EmojiPicker
           open={pickingEmoji}
           subjectName={current.name}
@@ -175,7 +185,7 @@ export default function SubjectsView({ initialSubjectId = null }: { initialSubje
                 Strona przedmiotu
               </button>
               {canEdit(current.createdBy) && (
-                <button className="btn-danger" onClick={() => removeSubject(current)}>
+                <button className="btn-danger" onClick={() => setDeleting(true)}>
                   Usuń przedmiot
                 </button>
               )}

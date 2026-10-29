@@ -13,6 +13,7 @@ export interface CellInfo {
   markers?: ReactNode // kropki/znaczniki pod numerem dnia
   badge?: number // licznik w rogu
   label?: string // opis dla czytników ekranu (po dacie)
+  tint?: string // klasy tła i ramki całej komórki (np. dzień z zaliczeniem); zastępują domyślne tło
 }
 
 /** Siatka miesiąca (od poniedziałku) z wyborem dnia; zawartość komórek dostarcza `cell`. */
@@ -40,14 +41,14 @@ export default function MonthGrid({
       ))}
       {keys.map((k) => {
         const inMonth = fromDateKey(k).getMonth() === anchor.getMonth()
-        const { markers, badge, label } = cell(k)
+        const { markers, badge, label, tint } = cell(k)
         return (
           <button
             key={k}
             onClick={() => onSelect(k)}
             aria-pressed={selected === k}
             aria-label={`${dayTitle(k)}${label ? `: ${label}` : ''}`}
-            className={`border-line relative flex min-h-14 flex-col items-center gap-1 rounded-xl border px-0.5 py-1.5 text-sm transition aria-pressed:border-accent aria-pressed:bg-accent-soft ${inMonth ? 'bg-surface' : 'bg-transparent opacity-45'}`}
+            className={`border-line relative flex min-h-14 flex-col items-center gap-1 rounded-xl border px-0.5 py-1.5 text-sm transition aria-pressed:border-accent ${tint ? 'aria-pressed:ring-accent aria-pressed:ring-2' : 'aria-pressed:bg-accent-soft'} ${inMonth ? (tint ?? 'bg-surface') : 'bg-transparent opacity-45'}`}
           >
             <span
               className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 ${k === todayKey ? 'bg-accent font-semibold text-white' : ''}`}

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { deleteSubject as runDelete } from './deleteSubjectOps.js'
 import { mergeSubjects as runMerge } from './mergeSubjectsOps.js'
 import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 
@@ -69,6 +70,16 @@ export const mergeSubjects = onCall(async (req) => {
   const me = await approvedUser(req.auth?.uid)
   try {
     return await runMerge(req.auth!.uid, me.get('role') === 'admin', req.data ?? {})
+  } catch (e) {
+    throw failed(e)
+  }
+})
+
+/** Usunięcie przedmiotu razem z uczestnictwami, materiałami (i plikami) oraz terminami zaliczeń. Autor przedmiotu lub admin. */
+export const deleteSubject = onCall(async (req) => {
+  const me = await approvedUser(req.auth?.uid)
+  try {
+    return await runDelete(req.auth!.uid, me.get('role') === 'admin', req.data ?? {})
   } catch (e) {
     throw failed(e)
   }

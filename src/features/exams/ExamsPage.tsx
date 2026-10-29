@@ -40,6 +40,7 @@ export default function ExamsPage() {
   // formularze pozwalają wybrać każdy przedmiot, nie tylko moje
   const allSections = useMemo(() => groupExams(subjects, exams, new Set(subjects.map((s) => s.id))), [subjects, exams])
   const nameOf = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects])
+  const emojiOf = useMemo(() => new Map(subjects.flatMap((s) => (s.emoji ? [[s.id, s.emoji] as const] : []))), [subjects])
   const known = useMemo(() => exams.filter((e) => nameOf.has(e.subjectId)), [exams, nameOf])
   const { upcoming, past } = useMemo(() => splitExams(known, todayKey), [known, todayKey])
 
@@ -101,6 +102,7 @@ export default function ExamsPage() {
           <ExamCalendar
             exams={known}
             nameOf={nameOf}
+            emojiOf={emojiOf}
             todayKey={todayKey}
             onEdit={(x) => open({ exam: x })}
             onAdd={(date) => open({ date })}

@@ -44,3 +44,24 @@ export function describeCounts(c: MergeCounts): string[] {
   ]
   return parts.filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`)
 }
+
+export interface DeleteCounts {
+  members: number
+  classes: number
+  materials: number
+  files: number
+  exams: number
+  todoLists: number
+}
+
+/** Co zniknie wraz z przedmiotem, po polsku; pomija zera (listy do nauki zostają, więc opisujemy je osobno). */
+export function describeDeleted(c: DeleteCounts): string[] {
+  const parts: [number, string, string, string][] = [
+    [c.members, 'uczestnictwo', 'uczestnictwa', 'uczestnictw'],
+    [c.materials, 'materiał', 'materiały', 'materiałów'],
+    [c.files, 'plik', 'pliki', 'plików'],
+    [c.exams, 'termin zaliczenia', 'terminy zaliczeń', 'terminów zaliczeń'],
+    [c.classes, 'wpis prowadzącego grupy', 'wpisy prowadzących grup', 'wpisów prowadzących grup'],
+  ]
+  return parts.filter(([n]) => n > 0).map(([n, one, few, many]) => `${n} ${plural(n, one, few, many)}`)
+}

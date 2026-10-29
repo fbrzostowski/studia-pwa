@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { byDate, countdown, daysUntil, groupExams, splitExams, suggestSlots } from '../src/features/exams/logic'
+import { byDate, countdown, daysUntil, dominantType, groupExams, splitExams, suggestSlots } from '../src/features/exams/logic'
 import type { Exam } from '../src/features/exams/types'
 import type { Subject } from '../src/features/materials/types'
 import type { IcsEvent } from '../src/features/schedule/parseIcs'
@@ -97,5 +97,18 @@ describe('suggestSlots', () => {
     const r = suggestSlots(e2, subjects, math, '2026-11-05')
     expect(r).toHaveLength(1)
     expect(r[0].room).toBeUndefined()
+  })
+})
+
+describe('dominantType', () => {
+  const t = (...types: Exam['type'][]) => dominantType(types.map((type) => ({ type })))
+  it('final exam wygrywa z mid-termem, mid-term z quizem', () => {
+    expect(t('QUIZ', 'MID', 'FIN')).toBe('FIN')
+    expect(t('QUIZ', 'MID')).toBe('MID')
+    expect(t('QUIZ', 'QUIZ')).toBe('QUIZ')
+    expect(t('MID')).toBe('MID')
+  })
+  it('brak zaliczeń nie barwi dnia', () => {
+    expect(t()).toBeUndefined()
   })
 })

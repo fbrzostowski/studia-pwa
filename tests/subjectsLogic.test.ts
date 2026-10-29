@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultMain, describeCounts, duplicateIds } from '../src/features/subjects/logic'
+import { defaultMain, describeCounts, describeDeleted, duplicateIds } from '../src/features/subjects/logic'
 
 const s = (id: string, name: string, usosCode?: string) => ({ id, name, usosCode })
 
@@ -36,6 +36,19 @@ describe('describeCounts', () => {
       '5 terminów zaliczeń',
       '1 lista do nauki',
       '12 podręczników',
+    ])
+  })
+})
+
+describe('describeDeleted', () => {
+  it('opisuje po polsku, co zniknie, i pomija zera', () => {
+    expect(describeDeleted({ members: 0, classes: 0, materials: 0, files: 0, exams: 0, todoLists: 3 })).toEqual([])
+    expect(describeDeleted({ members: 1, classes: 2, materials: 5, files: 2, exams: 1, todoLists: 0 })).toEqual([
+      '1 uczestnictwo',
+      '5 materiałów',
+      '2 pliki',
+      '1 termin zaliczenia',
+      '2 wpisy prowadzących grup',
     ])
   })
 })
