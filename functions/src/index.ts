@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { mergeSubjects as runMerge } from './mergeSubjectsOps.js'
 import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 
 initializeApp()
@@ -58,4 +59,17 @@ export const removeTextbookFolder = onCall(async (req) => {
   const me = await approvedUser(req.auth?.uid)
   await deleteSubjectFolder(req.data?.id, req.auth!.uid, me.get('role') === 'admin')
   return { ok: true }
+})
+
+/**
+ * Połączenie dwóch przedmiotów (zdublowanych): przenosi do docelowego wszystko, co dotyczy źródłowego, i usuwa je.
+ * Robi to serwer, bo dotyczy wpisów wielu osób, których klient nie może zmieniać. Autor źródła lub admin.
+ */
+export const mergeSubjects = onCall(async (req) => {
+  const me = await approvedUser(req.auth?.uid)
+  try {
+    return await runMerge(req.auth!.uid, me.get('role') === 'admin', req.data ?? {})
+  } catch (e) {
+    throw failed(e)
+  }
 })

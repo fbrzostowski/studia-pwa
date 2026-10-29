@@ -281,6 +281,37 @@ describe('plans: udostępnianie planu innym', () => {
   })
 })
 
+describe('plans: admin poprawia zajęcia w udostępnionym planie', () => {
+  const seed = async (shared: boolean | undefined) =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'plans/alice'), { events: [{ name: 'A' }], fileName: 'a.ics', ...(shared === undefined ? {} : { shared }) })
+    })
+
+  it('admin zmienia zajęcia tylko w planie z shared: true', async () => {
+    await seed(true)
+    await assertSucceeds(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }, { name: 'C' }] }))
+    await seed(false)
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }] }))
+    await seed(undefined)
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [{ name: 'B' }] }))
+  })
+  it('admin nie rusza niczego poza zajęciami i nie zakłada ani nie usuwa cudzego planu', async () => {
+    await seed(true)
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [], shared: false }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: [], fileName: 'x.ics' }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { shared: false }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: 'x' }))
+    await assertFails(updateDoc(doc(as('admin'), 'plans/alice'), { events: Array.from({ length: 1001 }, () => ({ name: 'x' })) }))
+    await assertFails(deleteDoc(doc(as('admin'), 'plans/alice')))
+    await assertFails(setDoc(doc(as('admin'), 'plans/nowy'), { events: [] }))
+  })
+  it('zwykły użytkownik nie edytuje cudzego, nawet udostępnionego planu', async () => {
+    await seed(true)
+    await assertFails(updateDoc(doc(as('bob'), 'plans/alice'), { events: [] }))
+    await assertFails(updateDoc(doc(as('pending'), 'plans/alice'), { events: [] }))
+  })
+})
+
 describe('plans: osobisty plan zajęć', () => {
   const plan = (n = 3) => ({ events: Array.from({ length: n }, (_, i) => ({ name: `E${i}`, start: '2026-10-01T08:00' })) })
 

@@ -84,6 +84,12 @@ service cloud.firestore {
                             && request.resource.data.events is list
                             && request.resource.data.events.size() <= 1000
                             && (!('shared' in request.resource.data) || request.resource.data.shared is bool);
+      // admin poprawia zajęcia tylko w planie udostępnionym przez właściciela i zmienia wyłącznie listę zajęć
+      allow update: if isAdmin()
+                    && resource.data.get('shared', false) == true
+                    && request.resource.data.events is list
+                    && request.resource.data.events.size() <= 1000
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['events']);
     }
 
     // listy do nauki są prywatne: widzi i zmienia je tylko właściciel (także admin nie ma wglądu)

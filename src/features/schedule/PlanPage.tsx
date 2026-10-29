@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { deleteDoc, doc, onSnapshot, type Timestamp } from 'firebase/firestore'
+import { deleteDoc, doc, onSnapshot, updateDoc, type Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { useSubjects } from '../materials/useSubjects'
@@ -8,6 +8,8 @@ import Avatar from '../../components/Avatar'
 import Sheet from '../../components/Sheet'
 import { useSharedPlanPeople, type PlanPerson } from './useSharedPlans'
 import { useOpenSubjectPage } from '../subject/SubjectPageContext'
+import EventEditor from './EventEditor'
+import { replaceEvent } from './eventEdit'
 import ImportPlan from './ImportPlan'
 import { findSubjectForEvent as findSubject } from './match'
 import { classKey, normGroup, type IcsEvent } from './parseIcs'
@@ -55,8 +57,10 @@ export default function PlanPage() {
   const [importing, setImporting] = useState(false)
   const [viewing, setViewing] = useState<PlanPerson | null>(null) // null = mój plan; inaczej plan udostępniony przez tę osobę
   const [picking, setPicking] = useState(false)
+  const [editing, setEditing] = useState<{ index: number; event?: IcsEvent } | null>(null) // admin poprawia zajęcia cudzego planu
   const { people } = useSharedPlanPeople()
   const target = viewing?.uid ?? user!.uid
+  const adminEdit = !!viewing && profile?.role === 'admin'
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,6 +99,12 @@ export default function PlanPage() {
   const visible = days.slice(0, limit)
   const todayKey = now.slice(0, 10)
   const tomorrowKey = toDateKey(addDays(fromDateKey(todayKey), 1))
+
+  // Reguły dopuszczają to tylko adminowi i tylko w planie udostępnionym przez właściciela (zmienia się wyłącznie lista zajęć).
+  const saveEvents = async (index: number, event: IcsEvent | null) => {
+    await updateDoc(doc(db, 'plans', target), { events: replaceEvent(plan?.events ?? [], index, event) })
+    setEditing(null)
+  }
 
   const removePlan = async () => {
     if (!confirm('Usunąć zaimportowany plan zajęć? Przedmioty zostaną.')) return
@@ -154,6 +164,20 @@ export default function PlanPage() {
     </Sheet>
   )
 
+  const editor = (
+    <Sheet open={!!editing} title={editing?.event ? 'Edytuj zajęcia' : 'Dodaj zajęcia'} onClose={() => setEditing(null)}>
+      {editing && (
+        <EventEditor
+          key={`${editing.index}`}
+          event={editing.event}
+          defaultDate={todayKey}
+          onSave={(e) => saveEvents(editing.index, e)}
+          onDelete={editing.event ? () => saveEvents(editing.index, null) : undefined}
+        />
+      )}
+    </Sheet>
+  )
+
   if (plan === undefined) return <p className="text-muted">Ładowanie…</p>
 
   if (importing) {
@@ -195,6 +219,15 @@ export default function PlanPage() {
     <div>
       {switcher}
       {picker}
+      {editor}
+      {adminEdit && (
+        <p className="bg-accent-soft text-accent mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl p-3 text-sm">
+          <span>Jako admin możesz poprawiać zajęcia w tym planie.</span>
+          <button className="btn-secondary" onClick={() => setEditing({ index: -1 })}>
+            Dodaj zajęcia
+          </button>
+        </p>
+      )}
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
       {visible.length === 0 && (
@@ -274,13 +307,25 @@ export default function PlanPage() {
                     )
                     const cls = `card flex w-full items-start gap-3 p-3.5 ${past ? 'opacity-55' : ''} ${ongoing ? 'ring-accent ring-2' : ''}`
                     return (
-                      <li key={`${e.start}-${e.code}-${e.form}-${i}`}>
+                      <li key={`${e.start}-${e.code}-${e.form}-${i}`} className="relative">
                         {subject ? (
                           <button className={`${cls} hover:bg-accent-soft`} onClick={() => openSubjectPage(subject.id)}>
                             {body}
                           </button>
                         ) : (
                           <div className={cls}>{body}</div>
+                        )}
+                        {adminEdit && (
+                          <button
+                            className="text-muted hover:text-accent hover:bg-accent-soft absolute top-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-full"
+                            aria-label={`Edytuj zajęcia: ${e.name}`}
+                            title="Edytuj zajęcia"
+                            onClick={() => setEditing({ index: (plan?.events ?? []).indexOf(e), event: e })}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                            </svg>
+                          </button>
                         )}
                       </li>
                     )
