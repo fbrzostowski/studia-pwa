@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Podręcznik</title>
+<style>body{font:16px system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100dvh;color:#555}</style>
+</head>
+<body>
+<p id="msg">Ładowanie podręcznika…</p>
+<script>
+// Strona pośrednicząca na OSOBNYM origin (studia-pwa.web.app), bez sesji aplikacji. Aplikacja (app.lomiankowe-sgh.pl) wysyła
+// tu pobrany plik HTML, a ta strona otwiera go z własnego adresu blob:. Dzięki temu skrypty podręcznika mają działające
+// localStorage, ale nie sięgają do logowania ani danych aplikacji (inny origin) i nie mają odnośnika do jej okna.
+var ALLOWED = ['https://app.lomiankowe-sgh.pl', 'https://fbrzostowski.github.io', 'http://localhost:5173']
+var opener = window.opener
+function fail(t) { document.getElementById('msg').textContent = t }
+if (!opener) {
+  fail('Otwórz podręcznik z aplikacji LOM.SGH.')
+} else {
+  window.addEventListener('message', function (e) {
+    if (e.source !== opener || ALLOWED.indexOf(e.origin) === -1) return
+    var d = e.data
+    if (!d || d.type !== 'html' || !(d.blob instanceof Blob)) return
+    var url = URL.createObjectURL(new Blob([d.blob], { type: 'text/html' }))
+    window.opener = null // strona podręcznika nie może sterować oknem aplikacji
+    location.replace(url)
+  })
+  ALLOWED.forEach(function (o) { opener.postMessage({ type: 'ready' }, o) }) // trafi tylko do właściwego origin
+  setTimeout(function () { fail('Nie udało się otworzyć podręcznika. Zamknij kartę i spróbuj ponownie z aplikacji.') }, 15000)
+}
+</script>
+</body>
+</html>

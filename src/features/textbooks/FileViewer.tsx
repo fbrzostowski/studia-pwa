@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getBlob, ref } from 'firebase/storage'
 import { storage } from '../../firebase/config'
+import { openHtmlInIsolatedTab } from './htmlTab'
 import { canPreview, hintFor, sandboxFor } from './viewer'
 
 const baseMime = (m: string) => m.split(';')[0]!.trim().toLowerCase()
@@ -13,8 +14,9 @@ const baseMime = (m: string) => m.split(';')[0]!.trim().toLowerCase()
  * przeglądarki bez logowania (stałe adresy z tokenem i podpisane adresy działają dla każdego, kto je ma).
  *
  * Bezpieczeństwo: adres `blob:` dziedziczy origin aplikacji, więc HTML (treść wgrana przez użytkownika) pokazujemy tylko
- * w ramce z `sandbox` bez `allow-same-origin` (pusty origin, bez dostępu do logowania i Firestore), a w nowej karcie
- * otwieramy wyłącznie typy bierne (PDF, obraz, tekst). Resztę (Word itp.) można tylko pobrać.
+ * w ramce z `sandbox` bez `allow-same-origin` (pusty origin, bez dostępu do logowania i Firestore; localStorage tam nie działa).
+ * Strony z localStorage otwiera „Otwórz w nowej karcie”: na osobnym origin (htmlTab.ts, hosting/viewer.html). W nowej karcie
+ * bezpośrednio z adresu `blob:` otwieramy tylko typy bierne (PDF, obraz, tekst). Resztę (Word itp.) można tylko pobrać.
  */
 export default function FileViewer({
   storagePath,
@@ -30,6 +32,7 @@ export default function FileViewer({
   onClose: () => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
+  const [blob, setBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const previewable = canPreview(mimeType)
   const activeContent = baseMime(mimeType) === 'text/html'
@@ -40,8 +43,12 @@ export default function FileViewer({
     getBlob(ref(storage, storagePath))
       .then((blob) => {
         // typ ustalamy sami (z bazy), a nie z tego, co odesłał serwer
-        objectUrl = URL.createObjectURL(new Blob([blob], { type: baseMime(mimeType) }))
-        if (live) setUrl(objectUrl)
+        const typed = new Blob([blob], { type: baseMime(mimeType) })
+        objectUrl = URL.createObjectURL(typed)
+        if (live) {
+          setBlob(typed)
+          setUrl(objectUrl)
+        }
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)))
     return () => {
@@ -68,6 +75,20 @@ export default function FileViewer({
           Zamknij
         </button>
         <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
+        {blob && activeContent && (
+          <button
+            className="btn-secondary shrink-0"
+            onClick={() => {
+              try {
+                openHtmlInIsolatedTab(blob)
+              } catch (e) {
+                setError(e instanceof Error ? e.message : String(e))
+              }
+            }}
+          >
+            Otwórz w nowej karcie
+          </button>
+        )}
         {url && previewable && !activeContent && (
           <a className="btn-secondary shrink-0" href={url} target="_blank" rel="noopener noreferrer">
             Otwórz w nowej karcie
