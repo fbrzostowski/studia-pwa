@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { deleteDoc, doc } from 'firebase/firestore'
-import { fileUrl } from '../../lib/fileLink'
+import FileViewer from '../textbooks/FileViewer'
+import { mimeFor } from '../textbooks/upload'
 import { deleteObject, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
@@ -31,13 +32,8 @@ export default function MaterialCard({
     }
   }
 
-  const openFile = async () => {
-    try {
-      window.open(await fileUrl('material', m.id), '_blank', 'noopener')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
+  const [viewing, setViewing] = useState(false)
+  const openFile = () => setViewing(true)
 
   return (
     <div className="card h-full p-4">
@@ -85,6 +81,9 @@ export default function MaterialCard({
           </button>
           {m.fileName && <span className="text-muted min-w-0 truncate text-xs">{m.fileName}</span>}
         </div>
+      )}
+      {viewing && m.storagePath && (
+        <FileViewer storagePath={m.storagePath} title={m.title} mimeType={mimeFor(m.fileName ?? '')} fileName={m.fileName} onClose={() => setViewing(false)} />
       )}
       {error && <p className="text-danger mt-2 text-sm">{error}</p>}
     </div>

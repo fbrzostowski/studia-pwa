@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://app.lomiankowe-sgh.pl", "https://fbrzostowski.github.io", "http://localhost:5173"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "Content-Range", "Range", "Accept", "x-goog-*"],
+    "maxAgeSeconds": 3600
+  }
+]

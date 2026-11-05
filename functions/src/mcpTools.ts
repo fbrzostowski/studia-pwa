@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { FieldValue, Timestamp, getFirestore, type DocumentData } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
-import { signedLink as sign } from './signedLink.js'
+import { APP_URL } from './config.js'
 import type { Tool } from './mcpProtocol.js'
 import {
   EXAM_LABEL,
@@ -33,7 +33,8 @@ export interface McpUser {
   isAdmin: boolean
 }
 
-export const LINK_TTL_MINUTES = 60
+/** Link do pliku prowadzi do aplikacji (wymaga zalogowania); nie dajemy adresów Storage, bo działałyby dla każdego, kto je ma. */
+export const appFileLink = (kind: 'textbook' | 'material', id: string) => `${APP_URL}/?open=${kind}:${id}`
 
 interface Subject {
   id: string
@@ -77,8 +78,6 @@ async function myClasses(uid: string, subjectIds: string[]): Promise<Scope[]> {
   }
   return out
 }
-
-const signedLink = (path: string, fileName: string) => sign(path, fileName, LINK_TTL_MINUTES)
 
 const dateProps = {
   date: { type: 'string', description: 'Jeden dzień, RRRR-MM-DD (np. 2026-11-05). Bez podania: dziś.' },
@@ -154,7 +153,7 @@ export const TOOLS: Tool<McpUser>[] = [
   {
     name: 'get_material',
     readOnly: true,
-    description: 'Pełna treść jednego materiału (notatka, link albo plik z linkiem do pobrania ważnym 60 minut).',
+    description: 'Pełna treść jednego materiału (notatka, link albo plik; plik ma openLink do aplikacji, który otwiera się po zalogowaniu).',
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'id z get_materials' } }, required: ['id'], additionalProperties: false },
     async run(a) {
       const id = str(a.id)
@@ -164,9 +163,7 @@ export const TOOLS: Tool<McpUser>[] = [
       const subject = (await db().doc(`subjects/${snap.get('subjectId')}`).get()).get('name')
       const view = materialView({ id, ...snap.data() }, new Map([[String(snap.get('subjectId')), String(subject ?? '')]]), 'lesson', true)
       const path = snap.get('storagePath')
-      return typeof path === 'string' && path
-        ? { ...view, downloadUrl: await signedLink(path, String(snap.get('fileName') ?? 'plik')), linkValidMinutes: LINK_TTL_MINUTES }
-        : view
+      return typeof path === 'string' && path ? { ...view, openLink: appFileLink('material', id) } : view
     },
   },
   {
@@ -234,7 +231,7 @@ export const TOOLS: Tool<McpUser>[] = [
   {
     name: 'get_textbook_link',
     readOnly: true,
-    description: `Zwraca link do pobrania podręcznika (Firebase Storage), ważny ${LINK_TTL_MINUTES} minut. Podaj id z search_textbooks albo tytuł/fragment (musi pasować do jednego pliku).`,
+    description: 'Zwraca link do podręcznika w aplikacji LOM.SGH. Link otwiera plik po zalogowaniu (Google), więc nie da się go użyć bez konta. Podaj id z search_textbooks albo tytuł/fragment (musi pasować do jednego pliku).',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'id z search_textbooks' }, query: { type: 'string', description: 'Tytuł lub fragment, jeśli nie znasz id.' } },
@@ -257,8 +254,8 @@ export const TOOLS: Tool<McpUser>[] = [
         title: book.title,
         folder: book.folder,
         fileName: book.fileName,
-        downloadUrl: await signedLink(book.storagePath, book.fileName),
-        linkValidMinutes: LINK_TTL_MINUTES,
+        link: appFileLink('textbook', book.id),
+        note: 'Link otwiera się po zalogowaniu w LOM.SGH.',
       }
     },
   },

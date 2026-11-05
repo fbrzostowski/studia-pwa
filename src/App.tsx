@@ -15,6 +15,7 @@ import UpdateBanner from './components/UpdateBanner'
 import SubjectPage from './features/subject/SubjectPage'
 import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
+import LinkedFile, { linkedFileFromUrl } from './features/textbooks/LinkedFile'
 import McpAuthorize from './features/settings/McpAuthorize'
 import { DELETED_KEY } from './features/settings/DeleteAccount'
 
@@ -50,6 +51,8 @@ const deletedNotice = () => {
 
 function Gate() {
   const { user, profile, loading, error, login, logout } = useAuth()
+  // plik z linku od Claude/ChatGPT (?open=textbook:ID): otwiera się dopiero po zalogowaniu
+  const [linked, setLinked] = useState(() => linkedFileFromUrl(window.location.search))
 
   if (loading) {
     return (
@@ -119,7 +122,20 @@ function Gate() {
     )
   }
 
-  return <Panel />
+  return (
+    <>
+      <Panel />
+      {linked && (
+        <LinkedFile
+          spec={linked}
+          onClose={() => {
+            window.history.replaceState(null, '', window.location.pathname)
+            setLinked(null)
+          }}
+        />
+      )}
+    </>
+  )
 }
 
 type Tab = 'plan' | 'materials' | 'textbooks' | 'exams' | 'subjects'

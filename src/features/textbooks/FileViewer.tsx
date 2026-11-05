@@ -1,29 +1,54 @@
 import { useEffect, useState } from 'react'
-import { fileUrl } from '../../lib/fileLink'
-import { hintFor, sandboxFor } from './viewer'
+import { getBlob, ref } from 'firebase/storage'
+import { storage } from '../../firebase/config'
+import { canPreview, hintFor, sandboxFor } from './viewer'
+
+const baseMime = (m: string) => m.split(';')[0]!.trim().toLowerCase()
 
 /**
- * Podręcznik pokazany w iframe na całym ekranie (PDF, HTML, TXT, obrazy).
+ * Plik (podręcznik albo załącznik materiału) pokazany na całym ekranie.
  *
- * Bezpieczeństwo: HTML to treść wgrana przez użytkownika, więc jego ramka ma `sandbox` bez `allow-same-origin`
- * (strona dostaje „pusty” origin, nie widzi naszych danych logowania ani Firestore), bez `allow-top-navigation`
- * (nie przekieruje aplikacji) i bez formularzy. Pozostałe typy nie mają piaskownicy (inaczej przeglądarka nie
- * pokaże PDF), ale plik i tak jest z obcego origin (Storage). Adres pliku w `src` nie wymaga CORS.
- * Gdyby ramka się nie wyświetlała (np. PDF na telefonie), zostaje „Otwórz w nowej karcie”.
+ * Plik pobieramy przez SDK Storage z tokenem zalogowanego użytkownika (reguły Storage wpuszczają tylko zatwierdzone konta)
+ * i pokazujemy z adresu `blob:`, który istnieje tylko w tej karcie. Nie ma więc linku, który ktoś mógłby skopiować do
+ * przeglądarki bez logowania (stałe adresy z tokenem i podpisane adresy działają dla każdego, kto je ma).
+ *
+ * Bezpieczeństwo: adres `blob:` dziedziczy origin aplikacji, więc HTML (treść wgrana przez użytkownika) pokazujemy tylko
+ * w ramce z `sandbox` bez `allow-same-origin` (pusty origin, bez dostępu do logowania i Firestore), a w nowej karcie
+ * otwieramy wyłącznie typy bierne (PDF, obraz, tekst). Resztę (Word itp.) można tylko pobrać.
  */
-export default function FileViewer({ textbookId, title, mimeType, onClose }: { textbookId: string; title: string; mimeType: string; onClose: () => void }) {
+export default function FileViewer({
+  storagePath,
+  title,
+  mimeType,
+  fileName,
+  onClose,
+}: {
+  storagePath: string
+  title: string
+  mimeType: string
+  fileName?: string
+  onClose: () => void
+}) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const previewable = canPreview(mimeType)
+  const activeContent = baseMime(mimeType) === 'text/html'
 
   useEffect(() => {
     let live = true
-    fileUrl('textbook', textbookId)
-      .then((u) => live && setUrl(u))
+    let objectUrl: string | null = null
+    getBlob(ref(storage, storagePath))
+      .then((blob) => {
+        // typ ustalamy sami (z bazy), a nie z tego, co odesłał serwer
+        objectUrl = URL.createObjectURL(new Blob([blob], { type: baseMime(mimeType) }))
+        if (live) setUrl(objectUrl)
+      })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)))
     return () => {
       live = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [textbookId])
+  }, [storagePath, mimeType])
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -43,30 +68,33 @@ export default function FileViewer({ textbookId, title, mimeType, onClose }: { t
           Zamknij
         </button>
         <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
-        {url && (
+        {url && previewable && !activeContent && (
           <a className="btn-secondary shrink-0" href={url} target="_blank" rel="noopener noreferrer">
             Otwórz w nowej karcie
+          </a>
+        )}
+        {url && (
+          <a className="btn-secondary shrink-0" href={url} download={fileName ?? title}>
+            Pobierz
           </a>
         )}
       </div>
       <div className="relative min-h-0 flex-1 bg-white">
         {error ? (
-          <p className="text-danger p-4 text-sm">Nie udało się otworzyć strony: {error}</p>
+          <p className="text-danger p-4 text-sm">Nie udało się otworzyć pliku: {error}</p>
         ) : !url ? (
           <p className="text-muted p-4 text-sm">Ładowanie…</p>
+        ) : previewable ? (
+          <iframe title={title} src={url} sandbox={sandboxFor(mimeType)} referrerPolicy="no-referrer" className="h-full w-full border-0" />
         ) : (
-          <iframe
-            title={title}
-            src={url}
-            sandbox={sandboxFor(mimeType)}
-            referrerPolicy="no-referrer"
-            className="h-full w-full border-0"
-          />
+          <p className="text-muted p-4 text-sm">Tego typu pliku nie da się podejrzeć w aplikacji. Użyj „Pobierz”.</p>
         )}
       </div>
-      <p className="text-muted border-line bg-surface border-t px-3 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-xs">
-        {hintFor(mimeType)}
-      </p>
+      {previewable && (
+        <p className="text-muted border-line bg-surface border-t px-3 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-xs">
+          {hintFor(mimeType)}
+        </p>
+      )}
     </div>
   )
 }

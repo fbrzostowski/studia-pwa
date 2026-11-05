@@ -42,10 +42,10 @@ klient ──▶ POST /mcp               (Authorization: Bearer …)
 | `list_subjects` | przedmioty z aplikacji |
 | `get_schedule` | plan z USOS na dzień/zakres (`date`, `from`, `to`, `subject`), domyślnie dziś |
 | `get_materials` | materiały z danego dnia: podpięte do lekcji i dodane tego dnia; opcjonalnie `subject` |
-| `get_material` | pełna notatka/link/plik (plik z linkiem na 60 min) |
+| `get_material` | pełna notatka/link/plik (plik ma `openLink` do aplikacji) |
 | `add_material` | notatka lub link do przedmiotu, opcjonalnie podpięte do lekcji (`date`, `form`, `group`) |
 | `search_textbooks` | szukanie podręczników po tytule, nazwie pliku, przedmiocie |
-| `get_textbook_link` | link do pobrania podręcznika z Firebase Storage (podpisany, 60 min) |
+| `get_textbook_link` | link do podręcznika w aplikacji (otwiera się po zalogowaniu Google) |
 | `get_exams` | terminy zaliczeń (nadchodzące albo zakres) |
 | `add_exam` | mid-term (MID), final exam (FIN), quiz (QUIZ); domyślnie dla grupy autora, bez grupy tylko dla niego; `form`+`group` albo `whole_subject` |
 | `get_todos` | prywatne listy do nauki |
@@ -63,16 +63,11 @@ Hosting jest potrzebny tylko do przekierowań (katalog `hosting/` ma stronę-prz
 ma jeszcze witryny Hosting `studia-pwa`, `firebase init hosting` albo konsola Firebase → Hosting → „Rozpocznij” ją tworzy.
 Adresy są w `functions/src/config.ts` (`MCP_BASE`, `APP_URL`) i w `src/features/settings/McpSettings.tsx`.
 
-Linki do plików są podpisywane (V4) przez konto funkcji `drive-sync@studia-pwa.iam.gserviceaccount.com`. Jednorazowo trzeba
-mu dać prawo podpisywania samym sobą:
+Bucket musi mieć CORS, żeby aplikacja pobierała pliki z logowaniem (SDK Storage):
 
 ```sh
-gcloud iam service-accounts add-iam-policy-binding drive-sync@studia-pwa.iam.gserviceaccount.com \
-  --member=serviceAccount:drive-sync@studia-pwa.iam.gserviceaccount.com \
-  --role=roles/iam.serviceAccountTokenCreator --project studia-pwa
+gcloud storage buckets update gs://studia-pwa-podreczniki --cors-file=storage.cors.json --project=studia-pwa
 ```
-
-Bez tego `get_textbook_link`, pliki w `get_material` i otwieranie plików w aplikacji (`fileLink`) zwrócą błąd uprawnień.
 
 Wygasłe tokeny i kody sprząta się same przy użyciu; dla porządku można włączyć w Firestore politykę TTL na polu `expiresAt`
 (kolekcje `mcpTokens`, `mcpCodes`, `mcpAuthRequests`).
@@ -83,11 +78,16 @@ Wygasłe tokeny i kody sprząta się same przy użyciu; dla porządku można wł
 `tests/mcpOAuth.test.ts` (emulator Firestore, `npm run test:rules`). Podpisywanie linków i przekierowania Hostingu
 nie są testowane lokalnie.
 
-## Linki do plików w aplikacji
+## Pliki i linki
 
-Aplikacja nie używa już `getDownloadURL` (stały adres z tokenem, działający bez logowania dla każdego, kto go zdobędzie).
-Pliki otwiera przez funkcję `fileLink`, która dla zatwierdzonego konta zwraca podpisany adres ważny 10 minut.
-Stare adresy z tokenem działają, dopóki nie uruchomisz jednorazowo (po wdrożeniu funkcji):
+Linki ze Storage (z tokenem `getDownloadURL` ani podpisane) działają dla każdego, kto je ma, więc nigdzie ich nie używamy.
+
+- **Aplikacja:** `FileViewer` pobiera plik przez SDK Storage z tokenem zalogowanego użytkownika (reguły Storage wpuszczają
+  tylko zatwierdzone konta) i pokazuje go z adresu `blob:` istniejącego tylko w tej karcie. HTML jest w ramce z `sandbox`
+  bez `allow-same-origin`, a w nowej karcie otwierają się tylko typy bierne (PDF, obraz, tekst).
+- **MCP (Claude/ChatGPT):** zwracają link do aplikacji `https://app.lomiankowe-sgh.pl/?open=textbook:ID` (albo `material:ID`).
+  Bez zalogowania widać ekran logowania, po zalogowaniu plik się otwiera.
+- Stare adresy z tokenem działają, dopóki ich nie unieważnisz (po wdrożeniu nowej wersji aplikacji):
 
 ```sh
 node functions/scripts/revoke-download-tokens.mjs --apply   # bez --apply tylko podgląd

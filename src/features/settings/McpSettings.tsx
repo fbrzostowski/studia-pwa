@@ -7,6 +7,8 @@ const call = httpsCallable<{ action: 'list' | 'revoke'; id?: string }, { connect
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e))
 // adres serwera MCP (Firebase Hosting → funkcja mcp, patrz firebase.json)
 const MCP_URL = 'https://studia-pwa.web.app/mcp'
+// okno „Dodaj własny konektor” w Claude (claude.ai)
+const CLAUDE_CONNECTOR_URL = 'https://claude.ai/new?redirect=claude.com&via=cookie&modal=add-custom-connector#customize/connectors/yours'
 
 const when = (ms: number | null) => (ms ? new Date(ms).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }) : 'jeszcze nie')
 
@@ -59,11 +61,16 @@ export default function McpSettings() {
       </p>
       <div className="space-y-2">
         <input className="input font-mono text-xs" readOnly value={MCP_URL} onFocus={(e) => e.currentTarget.select()} aria-label="Adres serwera MCP" />
-        <button className="btn-secondary" onClick={copy}>
-          {copied ? 'Skopiowano' : 'Kopiuj adres'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={copy}>
+            {copied ? 'Skopiowano' : 'Kopiuj adres'}
+          </button>
+          <a className="btn-primary" href={CLAUDE_CONNECTOR_URL} target="_blank" rel="noopener noreferrer">
+            Dodaj do Claude
+          </a>
+        </div>
         <p className="text-muted text-xs">
-          Claude: Ustawienia → Konektory → Dodaj własny konektor. ChatGPT: Ustawienia → Aplikacje → tryb dewelopera → Utwórz. Wklej adres,
+          Claude: „Dodaj do Claude” otwiera okno dodawania konektora (wklej skopiowany adres). ChatGPT: Ustawienia → Aplikacje → tryb dewelopera → Utwórz. Wklej adres,
           a potem zaloguj się i zatwierdź dostęp tutaj, w LOM.SGH. Żadnych kluczy.
         </p>
       </div>

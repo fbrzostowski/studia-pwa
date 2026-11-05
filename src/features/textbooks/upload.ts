@@ -23,6 +23,9 @@ export const ALLOWED_TYPES: Record<string, string> = {
   jpeg: 'image/jpeg',
 }
 
+/** Typ MIME z rozszerzenia nazwy pliku (nieznane: ogólny, czyli tylko pobranie). */
+export const mimeFor = (name: string) => ALLOWED_TYPES[extOf(name)] ?? 'application/octet-stream'
+
 export const ACCEPT = Object.keys(ALLOWED_TYPES)
   .map((e) => `.${e}`)
   .join(',')

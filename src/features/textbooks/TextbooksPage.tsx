@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { fileUrl } from '../../lib/fileLink'
 import { db, functions } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
@@ -9,7 +8,6 @@ import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
 import FileViewer from './FileViewer'
-import { PHONE_MAX_WIDTH, previewInApp } from './viewer'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { findSubjectForEvent } from '../schedule/match'
@@ -145,21 +143,8 @@ export default function TextbooksPage() {
     [books],
   )
 
-  const open = async (b: Textbook) => {
-    // PDF, HTML, TXT i obrazy: ramka w aplikacji (poza telefonem); reszta (Word itp.) i telefon: nowa karta
-    const phone = window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH}px)`).matches
-    if (previewInApp(b.mimeType, phone)) return setViewing(b)
-    // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
-    const w = window.open('', '_blank')
-    try {
-      const url = await fileUrl('textbook', b.id)
-      if (w) w.location.href = url
-      else window.location.href = url
-    } catch (e) {
-      w?.close()
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
+  // plik zawsze otwiera się w oknie aplikacji (pobranie z logowaniem, bez linku do skopiowania), patrz FileViewer
+  const open = (b: Textbook) => setViewing(b)
 
   const removeFolder = async (id: string, name: string) => {
     if (!confirm(`Usunąć pusty folder „${name}”? Przedmiot zostanie w aplikacji, znika tylko jego folder w podręcznikach.`)) return
@@ -250,7 +235,7 @@ export default function TextbooksPage() {
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      {viewing && <FileViewer textbookId={viewing.id} title={viewing.title} mimeType={viewing.mimeType} onClose={() => setViewing(null)} />}
+      {viewing && <FileViewer storagePath={viewing.storagePath} title={viewing.title} mimeType={viewing.mimeType} fileName={viewing.fileName} onClose={() => setViewing(null)} />}
 
       <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">
