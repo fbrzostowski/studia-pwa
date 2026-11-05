@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, type Timestamp } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { getDownloadURL, ref } from 'firebase/storage'
-import { db, functions, storage } from '../../firebase/config'
+import { fileUrl } from '../../lib/fileLink'
+import { db, functions } from '../../firebase/config'
 import Sheet from '../../components/Sheet'
 import { useAuth } from '../../firebase/AuthContext'
 import { plural } from '../../lib/plural'
@@ -152,7 +152,7 @@ export default function TextbooksPage() {
     // okno otwieramy od razu (w geście użytkownika), bo Safari blokuje window.open po await
     const w = window.open('', '_blank')
     try {
-      const url = await getDownloadURL(ref(storage, b.storagePath))
+      const url = await fileUrl('textbook', b.id)
       if (w) w.location.href = url
       else window.location.href = url
     } catch (e) {
@@ -250,7 +250,7 @@ export default function TextbooksPage() {
     <div>
       {error && <p className="text-danger mb-3 text-sm">{error}</p>}
 
-      {viewing && <FileViewer storagePath={viewing.storagePath} title={viewing.title} mimeType={viewing.mimeType} onClose={() => setViewing(null)} />}
+      {viewing && <FileViewer textbookId={viewing.id} title={viewing.title} mimeType={viewing.mimeType} onClose={() => setViewing(null)} />}
 
       <h2 className="text-xl font-semibold tracking-tight">Podręczniki</h2>
       <div className="mt-2 flex flex-wrap items-center gap-2">

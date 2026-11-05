@@ -5,6 +5,7 @@ import { useMemberships } from '../groups/hooks'
 import { useSubjects } from '../materials/useSubjects'
 import { toDateKey } from '../schedule/weeks'
 import ExamCalendar from './ExamCalendar'
+import ExamDetail from './ExamDetail'
 import ExamForm from './ExamForm'
 import ExamRow from './ExamRow'
 import { groupExams, splitExams } from './logic'
@@ -30,6 +31,7 @@ export default function ExamsPage() {
   const memberships = useMemberships()
   const [view, setView] = useState<View>('calendar')
   const [form, setForm] = useState<FormState>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [otherGroups, setOtherGroups] = useState(false) // pokaż też terminy grup, do których nie należę
 
   const todayKey = toDateKey(new Date())
@@ -54,6 +56,9 @@ export default function ExamsPage() {
   const shownExams = otherGroups ? known : relevant
   const hiddenCount = known.length - relevant.length
   const { upcoming, past } = useMemo(() => splitExams(shownExams, todayKey), [shownExams, todayKey])
+
+  const detail = detailId ? known.find((e) => e.id === detailId) : undefined
+  const detailSection = detail ? allSections.find((s) => s.subjects.some((x) => x.id === detail.subjectId)) : undefined
 
   const open = (state: NonNullable<FormState>) => {
     if (view === 'todo') setView('calendar')
@@ -115,6 +120,24 @@ export default function ExamsPage() {
         )}
       </Sheet>
 
+      <Sheet open={!!detail} title="Termin zaliczenia" onClose={() => setDetailId(null)}>
+        {detail && (
+          <ExamDetail
+            key={detail.id}
+            exam={detail}
+            section={detailSection}
+            allExams={known}
+            emoji={emojiOf.get(detail.subjectId)}
+            todayKey={todayKey}
+            onEdit={(x) => {
+              setDetailId(null)
+              open({ exam: x })
+            }}
+            onClose={() => setDetailId(null)}
+          />
+        )}
+      </Sheet>
+
       {subjects.length > 0 && view === 'calendar' && (
         <div className="mt-4">
           <ExamCalendar
@@ -122,7 +145,7 @@ export default function ExamsPage() {
             nameOf={nameOf}
             emojiOf={emojiOf}
             todayKey={todayKey}
-            onEdit={(x) => open({ exam: x })}
+            onOpen={(x) => setDetailId(x.id)}
           />
         </div>
       )}
@@ -145,7 +168,7 @@ export default function ExamsPage() {
               <ul className="space-y-2">
                 {upcoming.map((e) => (
                   <li key={e.id} className="bg-surface rounded-xl">
-                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
+                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onOpen={(x) => setDetailId(x.id)} />
                   </li>
                 ))}
               </ul>
@@ -160,7 +183,7 @@ export default function ExamsPage() {
               <ul className="mt-2 space-y-2">
                 {past.map((e) => (
                   <li key={e.id} className="bg-surface rounded-xl">
-                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={(x) => open({ exam: x })} />
+                    <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onOpen={(x) => setDetailId(x.id)} />
                   </li>
                 ))}
               </ul>

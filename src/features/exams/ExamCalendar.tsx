@@ -19,13 +19,13 @@ export default function ExamCalendar({
   nameOf,
   emojiOf,
   todayKey,
-  onEdit,
+  onOpen,
 }: {
   exams: Exam[]
   nameOf: Map<string, string>
   emojiOf: Map<string, string>
   todayKey: string
-  onEdit: (e: Exam) => void
+  onOpen: (e: Exam) => void
 }) {
   const [anchor, setAnchor] = useState(() => new Date())
   const [selected, setSelected] = useState(todayKey)
@@ -114,7 +114,7 @@ export default function ExamCalendar({
           <ul className="space-y-2">
             {dayExams.map((e) => (
               <li key={e.id} className="bg-surface rounded-xl">
-                <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onEdit={onEdit} />
+                <ExamRow e={e} subjectName={nameOf.get(e.subjectId)} emoji={emojiOf.get(e.subjectId)} todayKey={todayKey} onOpen={onOpen} />
               </li>
             ))}
           </ul>

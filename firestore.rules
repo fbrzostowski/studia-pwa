@@ -176,6 +176,11 @@ service cloud.firestore {
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
 
+    // skróty osobistych kluczy MCP: tylko Cloud Function (Admin SDK), klient nie ma do nich dostępu
+    match /mcpTokens/{docId} {
+      allow read, write: if false;
+    }
+
     match /textbooks/{docId} {
       allow read: if isApproved();
       allow write: if false; // tylko Cloud Function (Admin SDK)

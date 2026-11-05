@@ -4,6 +4,8 @@ import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { deleteAccount as runDeleteAccount } from './deleteAccountOps.js'
 import { deleteSubject as runDelete } from './deleteSubjectOps.js'
+export { mcp, mcpToken } from './mcp.js'
+import { signedLink } from './signedLink.js'
 import { mergeSubjects as runMerge } from './mergeSubjectsOps.js'
 import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 
@@ -94,6 +96,30 @@ export const deleteAccount = onCall(async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Zaloguj się.')
   try {
     return await runDeleteAccount(req.auth.uid, req.data ?? {})
+  } catch (e) {
+    throw failed(e)
+  }
+})
+
+/** Czas ważności linku do pliku otwieranego w aplikacji. */
+const FILE_LINK_MINUTES = 10
+
+/**
+ * Krótkotrwały, podpisany adres do pliku (podręcznik albo załącznik materiału) dla zatwierdzonego użytkownika.
+ * Zastępuje stałe adresy z tokenem (getDownloadURL), które działały bez logowania dla każdego, kto je zdobył.
+ */
+export const fileLink = onCall(async (req) => {
+  await approvedUser(req.auth?.uid)
+  const { kind, id } = (req.data ?? {}) as { kind?: unknown; id?: unknown }
+  if ((kind !== 'textbook' && kind !== 'material') || typeof id !== 'string' || !id || id.includes('/')) {
+    throw new HttpsError('invalid-argument', 'Nieprawidłowe żądanie pliku.')
+  }
+  const snap = await getFirestore().doc(`${kind === 'textbook' ? 'textbooks' : 'materials'}/${id}`).get()
+  const path = snap.get('storagePath')
+  if (!snap.exists || typeof path !== 'string' || !path) throw new HttpsError('not-found', 'Nie ma takiego pliku.')
+  try {
+    const name = String(snap.get('fileName') ?? 'plik')
+    return { url: await signedLink(path, name, FILE_LINK_MINUTES) }
   } catch (e) {
     throw failed(e)
   }

@@ -68,8 +68,9 @@ export async function deleteAccount(uid: string, input: { dryRun?: unknown; conf
   }
   if (dryRun) return { dryRun, counts }
 
+  const tokens = await mine('mcpTokens', 'uid') // klucze MCP znikają razem z kontem (nie wchodzą do podsumowania)
   await applyAll([
-    ...[...memberships.docs, ...exams.docs, ...todoLists.docs].map<Op>((d) => (b) => b.delete(d.ref)),
+    ...[...memberships.docs, ...exams.docs, ...todoLists.docs, ...tokens.docs].map<Op>((d) => (b) => b.delete(d.ref)),
     ...(plan.exists ? [((b) => b.delete(plan.ref)) as Op] : []),
   ])
   for (const f of files) await f.delete({ ignoreNotFound: true }).catch(() => {})

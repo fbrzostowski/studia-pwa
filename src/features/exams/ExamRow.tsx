@@ -1,7 +1,3 @@
-import { useState } from 'react'
-import { deleteDoc, doc } from 'firebase/firestore'
-import { db } from '../../firebase/config'
-import { useAuth } from '../../firebase/AuthContext'
 import { fromDateKey } from '../schedule/weeks'
 import { examScope, scopeTitle } from './groups'
 import { countdown, daysUntil } from './logic'
@@ -16,32 +12,37 @@ export default function ExamRow({
   subjectName,
   emoji,
   todayKey,
-  onEdit,
+  onOpen,
 }: {
   e: Exam
   subjectName?: string
   emoji?: string
   todayKey: string
-  onEdit: (e: Exam) => void
+  onOpen: (e: Exam) => void
 }) {
-  const { user, profile } = useAuth()
-  const [error, setError] = useState<string | null>(null)
-  const canEdit = profile?.role === 'admin' || e.createdBy === user!.uid
   const n = daysUntil(e.date, todayKey)
 
-  const remove = async () => {
-    if (!confirm(`Usunąć termin: ${EXAM_LABEL[e.type]}, ${fmtDate(e.date)}?`)) return
-    await deleteDoc(doc(db, 'exams', e.id)).catch((err) => setError(err.message))
-  }
-
   return (
-    <div className="border-line rounded-xl border p-3">
+    <div
+      className="border-line cursor-pointer rounded-xl border p-3 transition-colors hover:bg-bg"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(e)}
+      onKeyDown={(ev) => {
+        if (ev.target === ev.currentTarget && (ev.key === 'Enter' || ev.key === ' ')) {
+          ev.preventDefault()
+          onOpen(e)
+        }
+      }}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {subjectName && (
             <p className="mb-1 font-medium break-words">
               {emoji && <span aria-hidden="true" className="mr-1.5">{emoji}</span>}
-              <SubjectLink id={e.subjectId}>{subjectName}</SubjectLink>
+              <span onClick={(ev) => ev.stopPropagation()}>
+                <SubjectLink id={e.subjectId}>{subjectName}</SubjectLink>
+              </span>
             </p>
           )}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -66,18 +67,7 @@ export default function ExamRow({
           {e.note && <p className="mt-1.5 text-sm whitespace-pre-wrap">{e.note}</p>}
           {e.createdByName && <p className="text-muted mt-1 text-xs">Dodał(a): {e.createdByName}</p>}
         </div>
-        {canEdit && (
-          <div className="-mt-1 -mr-2 flex shrink-0 flex-col items-end">
-            <button className="btn-ghost" onClick={() => onEdit(e)}>
-              Edytuj
-            </button>
-            <button className="btn-danger" onClick={remove}>
-              Usuń
-            </button>
-          </div>
-        )}
       </div>
-      {error && <p className="text-danger mt-2 text-sm">{error}</p>}
     </div>
   )
 }

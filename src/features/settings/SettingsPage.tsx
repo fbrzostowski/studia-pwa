@@ -4,6 +4,7 @@ import { InstallGuideSheet, useInstallContext } from '../../components/InstallHi
 import Sheet from '../../components/Sheet'
 import DeleteAccount from './DeleteAccount'
 import { needsInstallGuide } from '../../lib/install'
+import McpSettings from './McpSettings'
 import AccessRequests from '../admin/AccessRequests'
 
 export default function SettingsPage() {
@@ -52,6 +53,11 @@ export default function SettingsPage() {
           Twój plan zajęć widzą wszyscy zatwierdzeni użytkownicy (zakładka Plan → „Mój plan”). Zmieniać go może tylko Ty i
           administrator.
         </p>
+      </section>
+
+      <section>
+        <h2 className="text-muted mb-4 text-xs font-semibold tracking-wide uppercase">Claude i ChatGPT (MCP)</h2>
+        <McpSettings />
       </section>
 
       {isAdmin && (

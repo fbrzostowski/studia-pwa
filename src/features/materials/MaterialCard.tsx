@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { deleteDoc, doc } from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
+import { fileUrl } from '../../lib/fileLink'
+import { deleteObject, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../firebase/AuthContext'
 import { fromDateKey } from '../schedule/weeks'
@@ -32,7 +33,7 @@ export default function MaterialCard({
 
   const openFile = async () => {
     try {
-      window.open(await getDownloadURL(ref(storage, m.storagePath!)), '_blank', 'noopener')
+      window.open(await fileUrl('material', m.id), '_blank', 'noopener')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }

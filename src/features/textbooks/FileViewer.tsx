@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getDownloadURL, ref } from 'firebase/storage'
-import { storage } from '../../firebase/config'
+import { fileUrl } from '../../lib/fileLink'
 import { hintFor, sandboxFor } from './viewer'
 
 /**
@@ -12,19 +11,19 @@ import { hintFor, sandboxFor } from './viewer'
  * pokaże PDF), ale plik i tak jest z obcego origin (Storage). Adres pliku w `src` nie wymaga CORS.
  * Gdyby ramka się nie wyświetlała (np. PDF na telefonie), zostaje „Otwórz w nowej karcie”.
  */
-export default function FileViewer({ storagePath, title, mimeType, onClose }: { storagePath: string; title: string; mimeType: string; onClose: () => void }) {
+export default function FileViewer({ textbookId, title, mimeType, onClose }: { textbookId: string; title: string; mimeType: string; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
-    getDownloadURL(ref(storage, storagePath))
+    fileUrl('textbook', textbookId)
       .then((u) => live && setUrl(u))
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)))
     return () => {
       live = false
     }
-  }, [storagePath])
+  }, [textbookId])
 
   useEffect(() => {
     const prev = document.body.style.overflow
