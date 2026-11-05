@@ -45,5 +45,49 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "/mcp",
+        "function": {
+          "functionId": "mcp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/register",
+        "function": {
+          "functionId": "mcp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/authorize",
+        "function": {
+          "functionId": "mcp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/token",
+        "function": {
+          "functionId": "mcp",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/.well-known/**",
+        "function": {
+          "functionId": "mcp",
+          "region": "europe-west1"
+        }
+      }
+    ]
+  }
 }

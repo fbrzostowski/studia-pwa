@@ -2,21 +2,51 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { norm } from './textbooks.js'
 
-export const TOKEN_PREFIX = 'lom_'
+// --- OAuth 2.1 (publiczny klient + PKCE S256) ---
 
-/** Nowy osobisty klucz: pokazujemy go raz, w bazie trzymamy tylko skrót. */
-export const newToken = () => TOKEN_PREFIX + randomBytes(32).toString('base64url')
+export const ACCESS_TTL_S = 60 * 60
+export const REFRESH_TTL_S = 60 * 24 * 3600
+export const CODE_TTL_S = 5 * 60
+export const REQUEST_TTL_S = 10 * 60
+
+export const randomToken = (bytes = 32) => randomBytes(bytes).toString('base64url')
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
-export const looksLikeToken = (t: unknown): t is string => typeof t === 'string' && /^lom_[A-Za-z0-9_-]{43}$/.test(t)
 
-/** Klucz z nagłówka `Authorization: Bearer`, a w razie braku z adresu (`/mcp/{klucz}` albo `?key=`). */
-export function tokenFromRequest(headers: Record<string, unknown>, path: string, query: Record<string, unknown>) {
-  const auth = typeof headers.authorization === 'string' ? headers.authorization : ''
-  const bearer = auth.match(/^Bearer\s+(\S+)$/i)?.[1]
-  if (looksLikeToken(bearer)) return bearer
-  const fromPath = path.split('/').filter(Boolean).find(looksLikeToken)
-  if (fromPath) return fromPath
-  return looksLikeToken(query.key) ? query.key : null
+/** PKCE S256: base64url(sha256(verifier)) musi równać się challenge z żądania autoryzacji. */
+export function pkceOk(verifier: unknown, challenge: unknown) {
+  if (typeof verifier !== 'string' || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return false
+  return typeof challenge === 'string' && createHash('sha256').update(verifier).digest('base64url') === challenge
+}
+
+/** Adres powrotny klienta: https albo pętla zwrotna (aplikacje desktopowe), bez fragmentu i danych logowania. */
+export function validRedirectUri(u: unknown): u is string {
+  if (typeof u !== 'string' || u.length > 500) return false
+  let url: URL
+  try {
+    url = new URL(u)
+  } catch {
+    return false
+  }
+  if (url.hash || url.username || url.password) return false
+  if (url.protocol === 'https:') return true
+  return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+}
+
+/** Adres powrotny z dopisanymi parametrami (kod albo błąd, zawsze też `state`, jeśli był). */
+export function redirectWith(base: string, params: Record<string, string | undefined>) {
+  const url = new URL(base)
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) url.searchParams.set(k, v)
+  return url.toString()
+}
+
+/** Token z nagłówka `Authorization: Bearer`. */
+export const bearerFrom = (headers: Record<string, unknown>) =>
+  (typeof headers.authorization === 'string' ? headers.authorization : '').match(/^Bearer\s+(\S+)$/i)?.[1] ?? null
+
+/** Ścieżka żądania bez przedrostka `/mcp` (adres bezpośredni funkcji) i bez końcowego ukośnika; „/” = sam serwer MCP. */
+export function routePath(path: string) {
+  const p = path.replace(/\/+$/, '').replace(/^\/mcp(?=\/|$)/, '')
+  return p === '' ? '/' : p
 }
 
 // --- daty (plan i terminy to lokalne klucze YYYY-MM-DD, jak w aplikacji) ---

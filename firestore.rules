@@ -176,7 +176,19 @@ service cloud.firestore {
         || (isApproved() && resource.data.createdBy == request.auth.uid);
     }
 
-    // skróty osobistych kluczy MCP: tylko Cloud Function (Admin SDK), klient nie ma do nich dostępu
+    // OAuth dla MCP (klienci, żądania, kody, uprawnienia i tokeny): tylko Cloud Function (Admin SDK)
+    match /mcpClients/{docId} {
+      allow read, write: if false;
+    }
+    match /mcpAuthRequests/{docId} {
+      allow read, write: if false;
+    }
+    match /mcpCodes/{docId} {
+      allow read, write: if false;
+    }
+    match /mcpGrants/{docId} {
+      allow read, write: if false;
+    }
     match /mcpTokens/{docId} {
       allow read, write: if false;
     }

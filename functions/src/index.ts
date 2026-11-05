@@ -1,24 +1,15 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { setGlobalOptions } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import './options.js'
 import { deleteAccount as runDeleteAccount } from './deleteAccountOps.js'
 import { deleteSubject as runDelete } from './deleteSubjectOps.js'
-export { mcp, mcpToken } from './mcp.js'
+export { mcp, mcpAuthorize, mcpConnections } from './mcp.js'
 import { signedLink } from './signedLink.js'
 import { mergeSubjects as runMerge } from './mergeSubjectsOps.js'
 import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 
 initializeApp()
-
-// Funkcje działają jako konto techniczne (role: Firestore i Storage w tym projekcie), bez pliku z kluczem.
-setGlobalOptions({
-  region: 'europe-west1',
-  serviceAccount: 'drive-sync@studia-pwa.iam.gserviceaccount.com',
-  memory: '512MiB',
-  timeoutSeconds: 120,
-  maxInstances: 3,
-})
 
 /** Zalogowany, zatwierdzony użytkownik (profil w Firestore); inaczej błąd dla klienta. */
 async function approvedUser(uid: string | undefined) {

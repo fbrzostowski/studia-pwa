@@ -11,7 +11,7 @@ Działa jako zwykła strona na komputerze i jako PWA (dodana do ekranu główneg
 - **Materiały** — kalendarz miesiąca z notatkami podpiętymi do lekcji oraz materiały per przedmiot (notatki, pliki, linki).
 - **Podręczniki** — pliki wgrywane przez aplikację, podział na przedmioty i podfoldery.
 - **Zaliczenia** — terminy mid-term i final exam (kalendarz, lista) oraz prywatne listy do nauki.
-- **Claude i ChatGPT (MCP)** — osobisty klucz w Ustawieniach; pytania o plan, materiały i podręczniki oraz dodawanie materiałów, zaliczeń i punktów do nauki ([`docs/mcp.md`](docs/mcp.md)).
+- **Claude i ChatGPT (MCP)** — logowanie OAuth bez kluczy; pytania o plan, materiały i podręczniki oraz dodawanie materiałów, zaliczeń i punktów do nauki ([`docs/mcp.md`](docs/mcp.md)).
 - Konta przez Google; nowe konto czeka na zatwierdzenie przez administratora.
 
 ## Stos

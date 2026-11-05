@@ -15,6 +15,7 @@ import UpdateBanner from './components/UpdateBanner'
 import SubjectPage from './features/subject/SubjectPage'
 import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
+import McpAuthorize from './features/settings/McpAuthorize'
 import { DELETED_KEY } from './features/settings/DeleteAccount'
 
 const logo = `${import.meta.env.BASE_URL}favicon.svg`
@@ -104,6 +105,16 @@ function Gate() {
         <button className="btn-secondary mt-6 w-full" onClick={logout}>
           Wyloguj
         </button>
+      </Centered>
+    )
+  }
+
+  // Claude/ChatGPT odsyła tu na zgodę OAuth (adres ?mcp_authorize=…); zalogowany i zatwierdzony użytkownik decyduje
+  const authorizeId = new URLSearchParams(window.location.search).get('mcp_authorize')
+  if (authorizeId) {
+    return (
+      <Centered>
+        <McpAuthorize id={authorizeId} />
       </Centered>
     )
   }

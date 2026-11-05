@@ -1,25 +1,45 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
-  addDaysKey, addTodoItems, dateRange, defaultScope, examTypeOf, hashToken, isDateKey, looksLikeToken, matchSubjects,
-  newToken, scheduleIn, todayKey, tokenFromRequest, validExamInput, validMaterialInput, validScope, warsawMidnight,
+  addDaysKey, addTodoItems, bearerFrom, dateRange, defaultScope, examTypeOf, hashToken, isDateKey, matchSubjects, pkceOk,
+  randomToken, redirectWith, routePath, scheduleIn, todayKey, validExamInput, validMaterialInput, validRedirectUri, validScope, warsawMidnight,
 } from '../functions/src/mcpLogic'
 
-describe('klucz MCP', () => {
-  it('jest losowy, rozpoznawalny i ma stały skrót', () => {
-    const a = newToken()
-    expect(looksLikeToken(a)).toBe(true)
-    expect(newToken()).not.toBe(a)
-    expect(hashToken(a)).toMatch(/^[0-9a-f]{64}$/)
-    expect(hashToken(a)).toBe(hashToken(a))
+describe('OAuth: pomocnicze', () => {
+  it('PKCE S256', () => {
+    const verifier = 'a'.repeat(43)
+    const challenge = createHash('sha256').update(verifier).digest('base64url')
+    expect(pkceOk(verifier, challenge)).toBe(true)
+    expect(pkceOk('b'.repeat(43), challenge)).toBe(false)
+    expect(pkceOk('krótki', challenge)).toBe(false)
+    expect(pkceOk(undefined, challenge)).toBe(false)
   })
-  it('bierze klucz z nagłówka, ścieżki albo ?key=', () => {
-    const t = newToken()
-    expect(tokenFromRequest({ authorization: `Bearer ${t}` }, '/', {})).toBe(t)
-    expect(tokenFromRequest({}, `/mcp/${t}`, {})).toBe(t)
-    expect(tokenFromRequest({}, `/${t}/`, {})).toBe(t)
-    expect(tokenFromRequest({}, '/', { key: t })).toBe(t)
-    expect(tokenFromRequest({ authorization: 'Bearer zly' }, '/', {})).toBeNull()
-    expect(tokenFromRequest({}, '/mcp', {})).toBeNull()
+  it('adresy powrotne: https i pętla zwrotna, nic więcej', () => {
+    for (const ok of ['https://claude.ai/api/mcp/auth_callback', 'http://localhost:33418/callback', 'http://127.0.0.1/cb']) expect(validRedirectUri(ok)).toBe(true)
+    for (const bad of ['http://evil.com/cb', 'javascript:alert(1)', 'https://a.pl/cb#x', 'https://u:p@a.pl/', 'myapp://cb', '', 5]) expect(validRedirectUri(bad)).toBe(false)
+  })
+  it('redirectWith dokłada kod i state, pomija puste', () => {
+    expect(redirectWith('https://a.pl/cb?x=1', { code: 'c', state: 's s', skip: undefined })).toBe('https://a.pl/cb?x=1&code=c&state=s+s')
+  })
+  it('bearer z nagłówka', () => {
+    expect(bearerFrom({ authorization: 'Bearer abc' })).toBe('abc')
+    expect(bearerFrom({ authorization: 'bearer abc' })).toBe('abc')
+    expect(bearerFrom({ authorization: 'Basic abc' })).toBeNull()
+    expect(bearerFrom({})).toBeNull()
+  })
+  it('routePath: z hostingu i bezpośrednio z funkcji', () => {
+    expect(routePath('/mcp')).toBe('/')
+    expect(routePath('/')).toBe('/')
+    expect(routePath('')).toBe('/')
+    expect(routePath('/token')).toBe('/token')
+    expect(routePath('/mcp/token')).toBe('/token')
+    expect(routePath('/.well-known/oauth-protected-resource/mcp')).toBe('/.well-known/oauth-protected-resource/mcp')
+    expect(routePath('/mcpx')).toBe('/mcpx')
+  })
+  it('tokeny są losowe, a skrót stały', () => {
+    expect(randomToken()).not.toBe(randomToken())
+    expect(hashToken('x')).toBe(hashToken('x'))
+    expect(hashToken('x')).toMatch(/^[0-9a-f]{64}$/)
   })
 })
 
