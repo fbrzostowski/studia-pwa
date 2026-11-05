@@ -14,16 +14,15 @@ import { useExams } from './useExams'
 import { myGroups, relevantFor } from './groups'
 import { norm } from '../../lib/text'
 
-type View = 'calendar' | 'list' | 'todo'
+type View = 'calendar' | 'todo'
 type FormState = { exam?: Exam; sectionKey?: string; type?: ExamType; date?: string } | null
 
 const VIEWS: [View, string][] = [
   ['calendar', 'Kalendarz'],
-  ['list', 'Lista'],
   ['todo', 'Do nauki'],
 ]
 
-/** Zaliczenia: terminy mid-term i final exam (kalendarz i lista) oraz prywatne listy do nauki. */
+/** Zaliczenia: terminy mid-term i final exam (kalendarz z listą pod spodem) oraz prywatne listy do nauki. */
 export default function ExamsPage() {
   const { user } = useAuth()
   const { subjects } = useSubjects()
@@ -124,7 +123,6 @@ export default function ExamsPage() {
             emojiOf={emojiOf}
             todayKey={todayKey}
             onEdit={(x) => open({ exam: x })}
-            onAdd={(date) => open({ date })}
           />
         </div>
       )}
@@ -135,7 +133,7 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {subjects.length > 0 && view === 'list' && (
+      {subjects.length > 0 && view === 'calendar' && (
         <>
           <section className="mt-6">
             <h3 className="text-muted mb-2 text-xs font-semibold tracking-wide uppercase">Nadchodzące</h3>

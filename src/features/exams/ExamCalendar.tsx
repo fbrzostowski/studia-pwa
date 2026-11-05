@@ -20,14 +20,12 @@ export default function ExamCalendar({
   emojiOf,
   todayKey,
   onEdit,
-  onAdd,
 }: {
   exams: Exam[]
   nameOf: Map<string, string>
   emojiOf: Map<string, string>
   todayKey: string
   onEdit: (e: Exam) => void
-  onAdd: (dateKey: string) => void
 }) {
   const [anchor, setAnchor] = useState(() => new Date())
   const [selected, setSelected] = useState(todayKey)
@@ -121,9 +119,6 @@ export default function ExamCalendar({
             ))}
           </ul>
         )}
-        <button className="btn-secondary mt-3" onClick={() => onAdd(selected)}>
-          + Dodaj termin tego dnia
-        </button>
       </section>
     </div>
   )
