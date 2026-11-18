@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { deleteDoc, doc } from 'firebase/firestore'
 import FileViewer from '../textbooks/FileViewer'
+import { openHtmlInIsolatedTab } from '../textbooks/htmlTab'
+import { opensInTab } from '../textbooks/viewer'
 import { mimeFor } from '../textbooks/upload'
 import { deleteObject, ref } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
@@ -33,7 +35,15 @@ export default function MaterialCard({
   }
 
   const [viewing, setViewing] = useState(false)
-  const openFile = () => setViewing(true)
+  const openFile = () => {
+    if (!m.storagePath || !opensInTab(mimeFor(m.fileName ?? ''), m.usesStorage)) return setViewing(true)
+    setError(null)
+    try {
+      openHtmlInIsolatedTab({ kind: 'material', id: m.id }) // strona HTML od razu w nowej karcie pod stałym linkiem
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   return (
     <div className="card h-full p-4">

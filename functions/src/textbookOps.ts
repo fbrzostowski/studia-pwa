@@ -5,7 +5,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { STORAGE_BUCKET } from './config.js'
 import { validCover } from './covers.js'
 import { canDelete, fileNameFor, findByName, folderHasBooks, folderPath, storagePathFor, titleOf, validFolderName } from './textbooks.js'
-import { isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
+import { htmlUsesStorage, isOwnUpload, MAX_UPLOAD_BYTES, mimeFor, originalName } from './uploads.js'
 
 const bucket = () => getStorage().bucket(STORAGE_BUCKET)
 
@@ -74,12 +74,15 @@ export async function addTextbookFromUpload(
     try {
       // Typ obiektu ustalamy z rozszerzenia, a nie z tego, co zgłosiła przeglądarka (inaczej plik .pdf mógłby być serwowany jako HTML).
       await bucket().file(finalPath).setMetadata({ contentType: mime.startsWith('text/') ? `${mime}; charset=utf-8` : mime })
+      // raz przy dodawaniu: strona HTML z localStorage otwiera się w nowej karcie, bez niego w ramce (patrz htmlUsesStorage)
+      const usesStorage = mime === 'text/html' ? htmlUsesStorage((await bucket().file(finalPath).download())[0].toString('utf8')) : undefined
       const title =
         typeof input.title === 'string' && input.title.trim() ? input.title.trim().slice(0, 150) : titleOf(name)
       await ref.set({
         title,
         fileName: name,
         mimeType: mime,
+        ...(usesStorage === undefined ? {} : { usesStorage }),
         size,
         folder: path,
         ...(cover ? { cover } : {}),

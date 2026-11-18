@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getBlob, ref } from 'firebase/storage'
 import { storage } from '../../firebase/config'
-import { openHtmlInIsolatedTab } from './htmlTab'
 import { canPreview, hintFor, sandboxFor } from './viewer'
 
 const baseMime = (m: string) => m.split(';')[0]!.trim().toLowerCase()
@@ -15,8 +14,9 @@ const baseMime = (m: string) => m.split(';')[0]!.trim().toLowerCase()
  *
  * Bezpieczeństwo: adres `blob:` dziedziczy origin aplikacji, więc HTML (treść wgrana przez użytkownika) pokazujemy tylko
  * w ramce z `sandbox` bez `allow-same-origin` (pusty origin, bez dostępu do logowania i Firestore; localStorage tam nie działa).
- * Strony z localStorage otwiera „Otwórz w nowej karcie”: na osobnym origin (htmlTab.ts, hosting/viewer.html). W nowej karcie
- * bezpośrednio z adresu `blob:` otwieramy tylko typy bierne (PDF, obraz, tekst). Resztę (Word itp.) można tylko pobrać.
+ * Strony korzystające z localStorage (`usesStorage`, ustalane przy dodawaniu) tu nie trafiają: otwierają się w nowej karcie
+ * pod stałym linkiem na osobnym origin (htmlTab.ts, functions/src/pages.ts).
+ * W nowej karcie bezpośrednio z adresu `blob:` otwieramy tylko typy bierne (PDF, obraz, tekst). Resztę (Word itp.) można tylko pobrać.
  */
 export default function FileViewer({
   storagePath,
@@ -32,7 +32,6 @@ export default function FileViewer({
   onClose: () => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
-  const [blob, setBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const previewable = canPreview(mimeType)
   const activeContent = baseMime(mimeType) === 'text/html'
@@ -45,10 +44,7 @@ export default function FileViewer({
         // typ ustalamy sami (z bazy), a nie z tego, co odesłał serwer
         const typed = new Blob([blob], { type: baseMime(mimeType) })
         objectUrl = URL.createObjectURL(typed)
-        if (live) {
-          setBlob(typed)
-          setUrl(objectUrl)
-        }
+        if (live) setUrl(objectUrl)
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)))
     return () => {
@@ -75,20 +71,6 @@ export default function FileViewer({
           Zamknij
         </button>
         <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
-        {blob && activeContent && (
-          <button
-            className="btn-secondary shrink-0"
-            onClick={() => {
-              try {
-                openHtmlInIsolatedTab(blob)
-              } catch (e) {
-                setError(e instanceof Error ? e.message : String(e))
-              }
-            }}
-          >
-            Otwórz w nowej karcie
-          </button>
-        )}
         {url && previewable && !activeContent && (
           <a className="btn-secondary shrink-0" href={url} target="_blank" rel="noopener noreferrer">
             Otwórz w nowej karcie
@@ -111,7 +93,7 @@ export default function FileViewer({
           <p className="text-muted p-4 text-sm">Tego typu pliku nie da się podejrzeć w aplikacji. Użyj „Pobierz”.</p>
         )}
       </div>
-      {previewable && (
+      {previewable && !activeContent && (
         <p className="text-muted border-line bg-surface border-t px-3 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-xs">
           {hintFor(mimeType)}
         </p>

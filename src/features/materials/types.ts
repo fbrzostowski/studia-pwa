@@ -32,6 +32,7 @@ export interface Material {
   url?: string // link
   storagePath?: string // slajd / plik
   fileName?: string
+  usesStorage?: boolean // strona HTML z localStorage: nowa karta zamiast ramki (ustalane przy dodawaniu)
   ownerId: string
   ownerName: string
   // podpięcie do konkretnej lekcji z planu (opcjonalne)

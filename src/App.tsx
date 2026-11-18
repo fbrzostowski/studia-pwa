@@ -16,6 +16,8 @@ import SubjectPage from './features/subject/SubjectPage'
 import type { PlanPerson } from './features/schedule/useSharedPlans'
 import { SubjectPageProvider } from './features/subject/SubjectPageContext'
 import LinkedFile, { linkedFileFromUrl } from './features/textbooks/LinkedFile'
+import PageHandoff from './features/textbooks/PageHandoff'
+import { pageFromUrl } from './features/textbooks/htmlTab'
 import McpAuthorize from './features/settings/McpAuthorize'
 import { DELETED_KEY } from './features/settings/DeleteAccount'
 
@@ -108,6 +110,16 @@ function Gate() {
         <button className="btn-secondary mt-6 w-full" onClick={logout}>
           Wyloguj
         </button>
+      </Centered>
+    )
+  }
+
+  // stały link strony HTML (studia-pwa.web.app/p/…) bez ważnej sesji odsyła tu (?page=textbook:ID): oddajemy sesję i wracamy
+  const page = pageFromUrl(window.location.search)
+  if (page) {
+    return (
+      <Centered>
+        <PageHandoff spec={page} />
       </Centered>
     )
   }

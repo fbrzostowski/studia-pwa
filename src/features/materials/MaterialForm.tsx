@@ -4,6 +4,7 @@ import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { shownName, useAuth } from '../../firebase/AuthContext'
 import { uploadErrorMessage } from '../../lib/errors'
+import { htmlUsesStorage, mimeFor } from '../textbooks/upload'
 import { normGroup } from '../schedule/parseIcs'
 import { MAX_FILE_BYTES, TYPE_LABEL, type MaterialType } from './types'
 
@@ -61,6 +62,8 @@ export default function MaterialForm({
         await uploadBytes(ref(storage, storagePath), file)
         data.storagePath = storagePath
         data.fileName = file.name
+        // raz przy dodawaniu: strona HTML z localStorage otwiera się w nowej karcie, bez niego w ramce (patrz htmlUsesStorage)
+        if (mimeFor(file.name) === 'text/html') data.usesStorage = htmlUsesStorage(await file.text())
       }
       await addDoc(collection(db, 'materials'), data)
       onDone()

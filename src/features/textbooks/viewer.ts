@@ -3,6 +3,14 @@ const INLINE = new Set(['application/pdf', 'text/html', 'text/plain', 'image/png
 
 const base = (mime: string) => mime.split(';')[0]!.trim().toLowerCase()
 
+/**
+ * Czy otworzyć plik od razu w nowej karcie pod stałym linkiem na osobnym origin (htmlTab.ts) zamiast w ramce.
+ * Tak dla strony HTML, która korzysta z pamięci przeglądarki (`usesStorage`, ustalane raz przy dodawaniu pliku):
+ * w ramce z sandboxem localStorage nie działa, więc np. zapis postępu by przepadał. Pliki dodane przed tym
+ * sprawdzeniem (brak pola) też idą do karty, bo tam działa każda strona.
+ */
+export const opensInTab = (mime: string, usesStorage?: boolean) => base(mime) === 'text/html' && usesStorage !== false
+
 /** Czy przeglądarka potrafi pokazać ten typ w ramce (Word i podobne nie). */
 export const canPreview = (mime: string) => INLINE.has(base(mime))
 

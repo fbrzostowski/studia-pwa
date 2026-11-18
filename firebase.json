@@ -54,6 +54,13 @@
     ],
     "rewrites": [
       {
+        "source": "/p/**",
+        "function": {
+          "functionId": "pages",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/mcp",
         "function": {
           "functionId": "mcp",

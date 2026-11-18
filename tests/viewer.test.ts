@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ALLOWED_TYPES } from '../src/features/textbooks/upload'
-import { canPreview, hintFor, previewInApp, sandboxFor } from '../src/features/textbooks/viewer'
+import { canPreview, hintFor, opensInTab, previewInApp, sandboxFor } from '../src/features/textbooks/viewer'
 
 describe('canPreview', () => {
   it('formaty wyświetlane przez przeglądarkę są w ramce, także z parametrem charset', () => {
@@ -10,9 +10,20 @@ describe('canPreview', () => {
     for (const ext of ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'odp', 'ods']) expect(canPreview(ALLOWED_TYPES[ext]!), ext).toBe(false)
     expect(canPreview('')).toBe(false)
   })
-  it('każdy dozwolony typ jest świadomie przypisany: w ramce albo w nowej karcie', () => {
+  it('każdy dozwolony typ jest świadomie przypisany: w ramce albo tylko do pobrania', () => {
     const inline = Object.entries(ALLOWED_TYPES).filter(([, m]) => canPreview(m)).map(([e]) => e).sort()
     expect(inline).toEqual(['htm', 'html', 'jpeg', 'jpg', 'pdf', 'png', 'txt'])
+  })
+})
+
+describe('opensInTab', () => {
+  it('strona HTML z localStorage (albo sprzed sprawdzania) w karcie, bez localStorage w ramce', () => {
+    for (const m of ['text/html', 'text/html; charset=utf-8', 'TEXT/HTML']) {
+      expect(opensInTab(m, true), m).toBe(true)
+      expect(opensInTab(m), m + ' bez pola').toBe(true)
+      expect(opensInTab(m, false), m + ' bez localStorage').toBe(false)
+    }
+    for (const m of ['application/pdf', 'text/plain', 'image/png', '']) expect(opensInTab(m, true), m).toBe(false)
   })
 })
 

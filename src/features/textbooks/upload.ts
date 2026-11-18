@@ -15,7 +15,7 @@ export const ALLOWED_TYPES: Record<string, string> = {
   odp: 'application/vnd.oasis.opendocument.presentation',
   ods: 'application/vnd.oasis.opendocument.spreadsheet',
   txt: 'text/plain',
-  // strona HTML: aplikacja pokazuje ją w iframe z sandboxem (bez dostępu do aplikacji), patrz HtmlViewer
+  // strona HTML: w ramce z sandboxem albo (gdy korzysta z localStorage) w nowej karcie na osobnym origin, patrz htmlUsesStorage
   html: 'text/html',
   htm: 'text/html',
   png: 'image/png',
@@ -48,3 +48,13 @@ export const tempName = (name: string, now = Date.now()) => `${now}-${name.repla
 
 /** Domyślny tytuł z nazwy pliku (bez rozszerzenia). */
 export const titleFromFile = (name: string) => name.replace(/\.[^./\\]{1,5}$/, '').trim()
+
+/**
+ * Czy strona HTML korzysta z pamięci przeglądarki (localStorage itp., np. zapis postępu). Sprawdzane raz przy dodawaniu
+ * pliku i zapisywane w dokumencie jako `usesStorage`. Takie strony otwierają się w nowej karcie (w ramce z sandboxem ta
+ * pamięć nie działa), pozostałe w ramce w aplikacji. Widzimy tylko kod w samym pliku, nie skrypty dociągane z sieci.
+ * UWAGA: to samo wyrażenie jest w functions/src/uploads.ts i src/features/textbooks/upload.ts (pilnuje tests/uploads.test.ts).
+ */
+export const STORAGE_API = /\b(?:localStorage|sessionStorage|indexedDB)\b|\bdocument\s*\.\s*cookie\b|\bcaches\s*\.\s*open\b|\bwindow\s*\.\s*claude\b/
+
+export const htmlUsesStorage = (html: string) => STORAGE_API.test(html)

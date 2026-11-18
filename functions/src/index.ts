@@ -5,6 +5,7 @@ import './options.js'
 import { deleteAccount as runDeleteAccount } from './deleteAccountOps.js'
 import { deleteSubject as runDelete } from './deleteSubjectOps.js'
 export { mcp, mcpAuthorize, mcpConnections } from './mcp.js'
+export { pages } from './pages.js'
 import { mergeSubjects as runMerge } from './mergeSubjectsOps.js'
 import { addTextbookFromUpload, deleteSubjectFolder, deleteTextbook, ensureSubjectFolder } from './textbookOps.js'
 

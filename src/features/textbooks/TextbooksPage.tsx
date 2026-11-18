@@ -8,6 +8,8 @@ import { plural } from '../../lib/plural'
 import AddSubjectForm from '../materials/AddSubjectForm'
 import AddTextbookForm from './AddTextbookForm'
 import FileViewer from './FileViewer'
+import { openHtmlInIsolatedTab } from './htmlTab'
+import { opensInTab } from './viewer'
 import AddTextbookSubject, { type FolderRef } from './AddTextbookSubject'
 import { useSubjects } from '../materials/useSubjects'
 import { findSubjectForEvent } from '../schedule/match'
@@ -23,6 +25,7 @@ interface Textbook {
   title: string
   fileName: string
   mimeType: string
+  usesStorage?: boolean // strona HTML z localStorage: nowa karta zamiast ramki (ustalane przy dodawaniu)
   size: number
   folder: string
   storagePath: string
@@ -143,8 +146,17 @@ export default function TextbooksPage() {
     [books],
   )
 
-  // plik zawsze otwiera się w oknie aplikacji (pobranie z logowaniem, bez linku do skopiowania), patrz FileViewer
-  const open = (b: Textbook) => setViewing(b)
+  // plik otwiera się w oknie aplikacji (pobranie z logowaniem, bez linku do skopiowania), patrz FileViewer;
+  // strona HTML z localStorage od razu w nowej karcie pod stałym linkiem na osobnym origin (patrz htmlTab.ts)
+  const open = (b: Textbook) => {
+    if (!opensInTab(b.mimeType, b.usesStorage)) return setViewing(b)
+    setError(null)
+    try {
+      openHtmlInIsolatedTab({ kind: 'textbook', id: b.id })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const removeFolder = async (id: string, name: string) => {
     if (!confirm(`Usunąć pusty folder „${name}”? Przedmiot zostanie w aplikacji, znika tylko jego folder w podręcznikach.`)) return

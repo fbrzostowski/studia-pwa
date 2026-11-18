@@ -83,12 +83,15 @@ nie są testowane lokalnie.
 Linki ze Storage (z tokenem `getDownloadURL` ani podpisane) działają dla każdego, kto je ma, więc nigdzie ich nie używamy.
 
 - **Aplikacja:** `FileViewer` pobiera plik przez SDK Storage z tokenem zalogowanego użytkownika (reguły Storage wpuszczają
-  tylko zatwierdzone konta) i pokazuje go z adresu `blob:` istniejącego tylko w tej karcie. HTML jest w ramce z `sandbox`
-  bez `allow-same-origin`, a w nowej karcie otwierają się tylko typy bierne (PDF, obraz, tekst).
-- **HTML z localStorage:** w ramce (`sandbox` bez `allow-same-origin`) localStorage nie działa, więc przycisk „Otwórz w nowej karcie”
-  przekazuje plik do `hosting/viewer.html` na osobnym origin `studia-pwa.web.app` (bez sesji aplikacji), który otwiera go
-  ze swojego `blob:`; strona podręcznika nie ma dostępu do logowania ani do okna aplikacji (`window.opener = null`).
-  Po zmianie tej strony wdróż: `firebase deploy --only hosting`.
+  tylko zatwierdzone konta) i pokazuje go z adresu `blob:` istniejącego tylko w tej karcie. W nowej karcie z `blob:`
+  otwierają się tylko typy bierne (PDF, obraz, tekst).
+- **Strony HTML (podręczniki z zapisem postępu w localStorage):** nie ma ich w ramce. Otwierają się od razu w nowej karcie
+  pod stałym linkiem `https://studia-pwa.web.app/p/textbook/ID` (albo `/p/material/ID`), który wydaje funkcja `pages`
+  (`functions/src/pages.ts`). Dostęp daje ciasteczko sesji Firebase (`__session`, HttpOnly, tylko pod `/p`, 14 dni),
+  wystawiane przez `POST /p/login` z tokenem z aplikacji (`PageHandoff`). Bez ważnej sesji funkcja odsyła do aplikacji
+  (`?page=textbook:ID`), która po zalogowaniu od razu wraca na ten link, więc przywrócone po restarcie karty działają.
+  Osobny origin: skrypty strony mają trwałe localStorage, ale nie widzą logowania ani danych aplikacji.
+  Po zmianie wdróż: `firebase deploy --only functions:pages,hosting`.
 - **MCP (Claude/ChatGPT):** zwracają link do aplikacji `https://app.lomiankowe-sgh.pl/?open=textbook:ID` (albo `material:ID`).
   Bez zalogowania widać ekran logowania, po zalogowaniu plik się otwiera.
 - Stare adresy z tokenem działają, dopóki ich nie unieważnisz (po wdrożeniu nowej wersji aplikacji):

@@ -68,3 +68,26 @@ describe('ścieżki tymczasowe', () => {
     expect(client.titleFromFile('bez rozszerzenia')).toBe('bez rozszerzenia')
   })
 })
+
+describe('htmlUsesStorage (sprawdzane raz przy dodawaniu)', () => {
+  it('to samo wyrażenie w aplikacji i w funkcjach', () => {
+    expect(client.STORAGE_API.source).toBe(server.STORAGE_API.source)
+  })
+  it('wykrywa pamięć przeglądarki w kodzie strony', () => {
+    for (const code of [
+      "localStorage.setItem('k', '1')",
+      "window['localStorage']",
+      'const s = sessionStorage',
+      "indexedDB.open('db')",
+      'document.cookie = "a=1"',
+      'document . cookie',
+      "caches.open('v1')",
+      "window.claude.use('db')",
+    ])
+      for (const lib of [server, client]) expect(lib.htmlUsesStorage(`<script>${code}</script>`), code).toBe(true)
+  })
+  it('zwykła strona bez pamięci idzie do ramki', () => {
+    for (const html of ['<h1>Notatki</h1><script>document.title = "x"; const cookieJar = 1</script>', '<p>myLocalStorageHelper</p>', ''])
+      for (const lib of [server, client]) expect(lib.htmlUsesStorage(html), html).toBe(false)
+  })
+})
